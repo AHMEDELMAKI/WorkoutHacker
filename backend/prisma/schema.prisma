@@ -1,0 +1,273 @@
+// This is your Prisma schema file
+// Learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────────────────────────────────────
+// USER & AUTH
+// ─────────────────────────────────────────────────────────
+
+model User {
+  id              String   @id @default(uuid())
+  email           String   @unique
+  passwordHash    String
+  emailVerified   Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  profile         Profile?
+  privacySettings PrivacySettings?
+  refreshTokens   RefreshToken[]
+  otpCodes        OtpCode[]
+  workoutSessions WorkoutSession[]
+  customWorkouts  CustomWorkout[]
+  notifications   Notification[]
+  analytics       Analytics?
+
+  @@index([email])
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  userId    String
+  token     String   @unique
+  expiresAt DateTime
+  revoked   Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([token])
+}
+
+model OtpCode {
+  id        String   @id @default(uuid())
+  userId    String
+  code      String
+  type      OtpType
+  expiresAt DateTime
+  used      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+enum OtpType {
+  EMAIL_VERIFICATION
+  PASSWORD_RESET
+}
+
+// ─────────────────────────────────────────────────────────
+// PROFILE & SETTINGS
+// ─────────────────────────────────────────────────────────
+
+model Profile {
+  id            String        @id @default(uuid())
+  userId        String        @unique
+  displayName   String?
+  avatarUrl     String?
+  gender        Gender?
+  ageYears      Int?
+  heightCm      Float?
+  weightKg      Float?
+  fitnessLevel  FitnessLevel?
+  fitnessGoals  String[]      @default([])
+  units         UnitSystem    @default(METRIC)
+  onboardingDone Boolean     @default(false)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model PrivacySettings {
+  id                 String  @id @default(uuid())
+  userId             String  @unique
+  localOnly          Boolean @default(true)
+  shareAnalytics     Boolean @default(false)
+  cameraAccess       Boolean @default(true)
+  notifications      Boolean @default(true)
+
+  user               User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  NON_BINARY
+  PREFER_NOT_TO_SAY
+}
+
+enum FitnessLevel {
+  BEGINNER
+  INTERMEDIATE
+  ADVANCED
+}
+
+enum UnitSystem {
+  METRIC
+  IMPERIAL
+}
+
+// ─────────────────────────────────────────────────────────
+// WORKOUTS & EXERCISES
+// ─────────────────────────────────────────────────────────
+
+model Exercise {
+  id              String   @id @default(uuid())
+  name            String   @unique
+  description     String?
+  muscleGroup     String[]
+  equipment       String[]
+  difficulty      FitnessLevel @default(BEGINNER)
+  videoUrl        String?
+  thumbnailUrl    String?
+  isSystemDefined Boolean  @default(true)
+  createdAt       DateTime @default(now())
+
+  exerciseSessions ExerciseSession[]
+}
+
+model CustomWorkout {
+  id          String   @id @default(uuid())
+  userId      String
+  name        String
+  description String?
+  exercises   Json     // Array of {exerciseId, sets, reps, weightKg}
+  durationMin Int?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+// ─────────────────────────────────────────────────────────
+// WORKOUT SESSIONS & AI METRICS
+// ─────────────────────────────────────────────────────────
+
+model WorkoutSession {
+  id              String          @id @default(uuid())
+  userId          String
+  workoutType     String          // full_body | upper_body | lower_body | custom
+  title           String
+  startedAt       DateTime
+  completedAt     DateTime?
+  durationMin     Int?
+  caloriesBurned  Int?
+  formScore       Float?          // 0–100
+  overallFatigue  FatigueLevel?
+  notes           String?
+  createdAt       DateTime        @default(now())
+
+  user            User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  exerciseSessions ExerciseSession[]
+  aiMetrics       AiMetric[]
+
+  @@index([userId])
+  @@index([userId, startedAt])
+}
+
+model ExerciseSession {
+  id                String         @id @default(uuid())
+  workoutSessionId  String
+  exerciseId        String?
+  exerciseName      String
+  totalReps         Int            @default(0)
+  totalSets         Int            @default(0)
+  avgFormScore      Float?
+  maxFatigueLevel   FatigueLevel?
+  tempoClassified   String?
+  startedAt         DateTime
+  completedAt       DateTime?
+
+  workoutSession    WorkoutSession @relation(fields: [workoutSessionId], references: [id], onDelete: Cascade)
+  exercise          Exercise?      @relation(fields: [exerciseId], references: [id])
+  aiMetrics         AiMetric[]
+
+  @@index([workoutSessionId])
+}
+
+model AiMetric {
+  id                  String          @id @default(uuid())
+  workoutSessionId    String
+  exerciseSessionId   String?
+  timestampMs         BigInt
+  reps                Int             @default(0)
+  formScore           Float?          // 0–100
+  fatigue             FatigueLevel?
+  tempo               String?         // slow | balanced | fast
+  detectedExercise    String?
+  confidenceScore     Float?          // 0–1
+  poseData            Json?           // Landmark buffer snapshot (optional)
+  createdAt           DateTime        @default(now())
+
+  workoutSession      WorkoutSession  @relation(fields: [workoutSessionId], references: [id], onDelete: Cascade)
+  exerciseSession     ExerciseSession? @relation(fields: [exerciseSessionId], references: [id])
+
+  @@index([workoutSessionId])
+  @@index([exerciseSessionId])
+}
+
+enum FatigueLevel {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+// ─────────────────────────────────────────────────────────
+// ANALYTICS & PROGRESS
+// ─────────────────────────────────────────────────────────
+
+model Analytics {
+  id                  String   @id @default(uuid())
+  userId              String   @unique
+  totalWorkouts       Int      @default(0)
+  totalCaloriesBurned Int      @default(0)
+  totalMinutes        Int      @default(0)
+  currentStreak       Int      @default(0)
+  longestStreak       Int      @default(0)
+  lastWorkoutAt       DateTime?
+  avgFormScore        Float    @default(0)
+  updatedAt           DateTime @updatedAt
+
+  user                User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ─────────────────────────────────────────────────────────
+// NOTIFICATIONS
+// ─────────────────────────────────────────────────────────
+
+model Notification {
+  id        String             @id @default(uuid())
+  userId    String
+  type      NotificationType
+  title     String
+  body      String
+  read      Boolean            @default(false)
+  sentAt    DateTime           @default(now())
+
+  user      User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, read])
+}
+
+enum NotificationType {
+  STREAK_ALERT
+  WORKOUT_REMINDER
+  FORM_TIP
+  ACHIEVEMENT
+  SYSTEM
+}

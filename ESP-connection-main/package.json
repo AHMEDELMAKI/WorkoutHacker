@@ -1,0 +1,41 @@
+{
+  "name": "@workout-hacker/esp-connection",
+  "version": "1.0.0",
+  "description": "Production-ready, self-contained React Native WiFi module for ESP32 sensor devices",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "scripts": {
+    "lint": "eslint src/",
+    "type-check": "tsc --noEmit"
+  },
+  "keywords": [
+    "react-native",
+    "bluetooth",
+    "esp32",
+    "bluetooth-classic",
+    "sensor",
+    "emg",
+    "imu",
+    "wearable"
+  ],
+  "license": "MIT",
+  "peerDependencies": {
+    "react": "^18.0.0 || ^19.0.0",
+    "react-native": "^0.70.0 || ^0.84.0"
+  },
+  "dependencies": {
+    "@react-native-async-storage/async-storage": "^1.24.0",
+    "react-native-bluetooth-classic": "1.73.0-rc.17",
+    "react-native-wifi-reborn": "^4.12.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.0",
+    "eslint": "^8.19.0",
+    "typescript": "^5.8.3"
+  },
+  "files": [
+    "src/",
+    "README.md",
+    "AndroidManifest.xml"
+  ]
+}

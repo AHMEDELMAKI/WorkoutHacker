@@ -1,0 +1,120 @@
+import type { NavigatorScreenParams } from '@react-navigation/native';
+import type { NativeStackScreenProps } from '@react-navigation/native-stack';
+import type { ExerciseType } from '../features/workout/data/workoutData';
+
+export type FatigueCheckStackParamList = {
+    FatigueLanding: undefined;
+    FatigueHeartRate: undefined;
+    FatigueProcessing: undefined;
+    FatigueResults: undefined;
+};
+
+// Root Stack
+export type RootStackParamList = {
+    Auth: undefined;
+    Onboarding: undefined;
+    ProfileSetup: undefined;
+    Main: undefined;
+    FatigueCheck: NavigatorScreenParams<FatigueCheckStackParamList> | undefined;
+};
+
+// Auth Stack
+export type AuthStackParamList = {
+    Login: undefined;
+    Register: undefined;
+    ForgotPassword: undefined;
+    OTPVerification: { email: string };
+    ResetPassword: { token: string };
+    Success: undefined;
+};
+
+// Onboarding Stack
+export type OnboardingStackParamList = {
+    Splash: undefined;
+    OnboardingSlides: undefined;
+    Welcome: undefined;
+    Intro: undefined;
+};
+
+// Profile Setup Stack
+export type ProfileSetupStackParamList = {
+    Gender: undefined;
+    Age: undefined;
+    Weight: undefined;
+    Goals: undefined;
+    FitnessLevel: undefined;
+    Height: undefined;
+    SetupComplete: undefined;
+};
+
+// Main Tab Stack
+export type MainTabParamList = {
+    Home: undefined;
+    Workout: { screen?: keyof WorkoutStackParamList; params?: any } | undefined;
+    ProgressStack: undefined;   // wraps Progress + WorkoutSummary
+    AICoach: undefined;
+    ProfileStack: undefined;    // wraps Profile + Privacy + Help + About
+};
+
+// Profile stack (nested under ProfileStack tab)
+export type ProfileStackParamList = {
+    ProfileHome: undefined;
+    PrivacySettings: undefined;
+    Help: undefined;
+    AboutApp: undefined;
+};
+
+// Progress stack (nested under ProgressStack tab)
+export type ProgressStackParamList = {
+    ProgressHome: undefined;
+    WorkoutSummary: {
+        workoutType: 'full_body' | 'upper_body' | 'lower_body';
+        score: number;
+        duration: string;
+        calories: number;
+        muscleFocus: string[];
+        suggestions: string[];
+    };
+};
+
+// Workout Stack (nested under Workout tab)
+export type WorkoutStackParamList = {
+    WorkoutSelection: undefined;
+    FullBodyWorkout: undefined;
+    UpperWorkout: undefined;
+    LowerWorkout: undefined;
+    CustomWorkout: undefined;
+    GhostGuideTest: undefined;
+    TempoClassifierTest: undefined;
+    WorkoutPlannerTest: undefined;
+    ExerciseDetails: { exercise: ExerciseType };
+    Tracking: { exercise: ExerciseType };
+    HeartRateFatigue: { workoutType: string };
+    WorkoutComplete: { workoutType: string };
+};
+
+// Screen Props helpers
+export type RootStackScreenProps<T extends keyof RootStackParamList> =
+    NativeStackScreenProps<RootStackParamList, T>;
+
+export type AuthStackScreenProps<T extends keyof AuthStackParamList> =
+    NativeStackScreenProps<AuthStackParamList, T>;
+
+export type OnboardingStackScreenProps<T extends keyof OnboardingStackParamList> =
+    NativeStackScreenProps<OnboardingStackParamList, T>;
+
+export type ProfileSetupStackScreenProps<
+    T extends keyof ProfileSetupStackParamList,
+> = NativeStackScreenProps<ProfileSetupStackParamList, T>;
+
+export type ProfileStackScreenProps<T extends keyof ProfileStackParamList> =
+    NativeStackScreenProps<ProfileStackParamList, T>;
+
+export type ProgressStackScreenProps<T extends keyof ProgressStackParamList> =
+    NativeStackScreenProps<ProgressStackParamList, T>;
+
+export type WorkoutStackScreenProps<T extends keyof WorkoutStackParamList> =
+    NativeStackScreenProps<WorkoutStackParamList, T>;
+
+export type FatigueCheckScreenProps<T extends keyof FatigueCheckStackParamList> =
+    NativeStackScreenProps<FatigueCheckStackParamList, T>;

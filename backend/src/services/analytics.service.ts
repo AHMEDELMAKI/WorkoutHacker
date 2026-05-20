@@ -1,0 +1,96 @@
+import { prisma } from '../lib/prisma';
+
+export class AnalyticsService {
+    static async getSummary(userId: string) {
+        const analytics = await prisma.analytics.findUnique({ where: { userId } });
+        return analytics || {
+            totalWorkouts: 0,
+            totalCaloriesBurned: 0,
+            totalMinutes: 0,
+            currentStreak: 0,
+            longestStreak: 0,
+            avgFormScore: 0,
+            lastWorkoutAt: null,
+        };
+    }
+
+    static async getWeeklySummary(userId: string) {
+        const startOfWeek = new Date();
+        startOfWeek.setDate(startOfWeek.getDate() - ((startOfWeek.getDay() + 6) % 7));
+        startOfWeek.setHours(0, 0, 0, 0);
+
+        const sessions = await prisma.workoutSession.findMany({
+            where: {
+                userId,
+                startedAt: { gte: startOfWeek },
+                completedAt: { not: null },
+            },
+            orderBy: { startedAt: 'asc' },
+        });
+
+        const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+        const byDay: Record<string, { workouts: number; calories: number; minutes: number }> = {};
+        days.forEach((d) => (byDay[d] = { workouts: 0, calories: 0, minutes: 0 }));
+
+        for (const s of sessions) {
+            const dayIdx = (s.startedAt.getDay() + 6) % 7;
+            const day = days[dayIdx];
+            byDay[day].workouts++;
+            byDay[day].calories += s.caloriesBurned || 0;
+            byDay[day].minutes += s.durationMin || 0;
+        }
+
+        return { sessions, byDay };
+    }
+
+    static async getStreaks(userId: string) {
+        const analytics = await prisma.analytics.findUnique({ where: { userId } });
+        return {
+            currentStreak: analytics?.currentStreak || 0,
+            longestStreak: analytics?.longestStreak || 0,
+            lastWorkoutAt: analytics?.lastWorkoutAt || null,
+        };
+    }
+
+    static async getFatigueTrend(userId: string) {
+        const since = new Date();
+        since.setDate(since.getDate() - 30);
+        return prisma.aiMetric.findMany({
+            where: {
+                workoutSession: { userId },
+                createdAt: { gte: since },
+                fatigue: { not: null },
+            },
+            select: { fatigue: true, createdAt: true },
+            orderBy: { createdAt: 'asc' },
+            take: 500,
+        });
+    }
+
+    static async getFormTrend(userId: string) {
+        return prisma.workoutSession.findMany({
+            where: { userId, formScore: { not: null } },
+            orderBy: { startedAt: 'asc' },
+            take: 30,
+            select: { startedAt: true, formScore: true, title: true },
+        });
+    }
+
+    static async getPersonalRecords(userId: string) {
+        return prisma.exerciseSession.findMany({
+            where: {
+                workoutSession: { userId, completedAt: { not: null } },
+                totalReps: { gt: 0 },
+            },
+            orderBy: [{ exerciseName: 'asc' }, { totalReps: 'desc' }],
+            distinct: ['exerciseName'],
+            select: {
+                exerciseName: true,
+                totalReps: true,
+                totalSets: true,
+                avgFormScore: true,
+                workoutSession: { select: { startedAt: true } },
+            },
+        });
+    }
+}
