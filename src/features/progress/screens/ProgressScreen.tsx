@@ -393,7 +393,28 @@ const ProgressScreen: React.FC<Props> = ({ navigation }) => {
         );
     }
 
-    if (!data) return null;
+    if (!data) {
+        return (
+            <View style={styles.root}>
+                <StatusBar barStyle="light-content" backgroundColor={PT.bgPrimary} />
+                <SafeAreaView style={styles.safe} edges={['top']}>
+                    <View style={[styles.emptyState, { backgroundColor: PT.bgPrimary }]}> 
+                        <Ionicons name="warning-outline" size={22} color={PT.accent} />
+                        <Text style={styles.emptyTitle}>No progress data</Text>
+                        <Text style={styles.emptySub}>We couldn’t load your analytics summary.</Text>
+                        <TouchableOpacity
+                            style={styles.retryBtn}
+                            accessibilityRole="button"
+                            onPress={fetchData}
+                        >
+                            <Text style={styles.retryBtnText}>Retry</Text>
+                        </TouchableOpacity>
+                    </View>
+                </SafeAreaView>
+            </View>
+        );
+    }
+
 
     return (
         <View style={styles.root}>
@@ -497,6 +518,39 @@ const ProgressScreen: React.FC<Props> = ({ navigation }) => {
 const { spacing: S, radius: R, font: F } = PT;
 
 const styles = StyleSheet.create({
+    emptyState: {
+        flex: 1,
+        paddingHorizontal: 24,
+        paddingTop: 24,
+        alignItems: 'center',
+        gap: 10,
+        justifyContent: 'center',
+    },
+    emptyTitle: {
+        fontSize: 18,
+        fontWeight: '800',
+        color: '#FFFFFF',
+        marginTop: 6,
+        textAlign: 'center',
+    },
+    emptySub: {
+        fontSize: 14,
+        color: 'rgba(255,255,255,0.7)',
+        textAlign: 'center',
+        marginTop: -2,
+    },
+    retryBtn: {
+        marginTop: 12,
+        backgroundColor: PT.accent,
+        paddingHorizontal: 18,
+        paddingVertical: 10,
+        borderRadius: 12,
+    },
+    retryBtnText: {
+        color: '#0B0B0F',
+        fontWeight: '800',
+        fontSize: 14,
+    },
     root: {
         flex: 1,
         backgroundColor: PT.bgPrimary,

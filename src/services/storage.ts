@@ -33,13 +33,17 @@ class StorageService {
     async remove(key: StorageKey): Promise<void> {
         try {
             await AsyncStorage.removeItem(key);
-        } catch { /* silent */ }
+        } catch {
+            /* silent */
+        }
     }
 
     async clearAll(): Promise<void> {
         try {
             await AsyncStorage.multiRemove(Object.values(KEYS));
-        } catch { /* silent */ }
+        } catch {
+            /* silent */
+        }
     }
 
     // Convenience wrappers
@@ -55,3 +59,4 @@ class StorageService {
 
 export const storage = new StorageService();
 export { KEYS as STORAGE_KEYS };
+

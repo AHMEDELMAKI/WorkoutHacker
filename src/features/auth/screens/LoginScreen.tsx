@@ -1,17 +1,10 @@
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import React, { useRef, useState } from 'react';
-import {
-    Alert,
-    Keyboard,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
-} from 'react-native';
+import { Alert, Keyboard, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import type { AuthStackScreenProps } from '../../../navigation/types';
 import { authApi } from '../../../services/api/auth.api';
-import { storage } from '../../../services/storage';
+import { navigateRoot } from '../../../services/navigationService';
+import { useAuthStore } from '../../../store/authStore';
 import { validateLogin } from '../../../utils/validation';
 import AuthButton from '../components/AuthButton';
 import { AuthColors } from '../components/AuthColors';
@@ -23,215 +16,224 @@ import SocialButton from '../components/SocialButton';
 type Props = AuthStackScreenProps<'Login'>;
 
 const LoginScreen: React.FC<Props> = ({ navigation }) => {
-    const [email, setEmail] = useState('');
-    const [password, setPassword] = useState('');
-    const [rememberMe, setRememberMe] = useState(false);
-    const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
-    const [loading, setLoading] = useState(false);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [rememberMe, setRememberMe] = useState(false);
+  const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
+  const [loading, setLoading] = useState(false);
 
-    const passwordRef = useRef<TextInput>(null);
+  const passwordRef = useRef<TextInput>(null);
 
-    const handleLogin = async () => {
-        Keyboard.dismiss();
-        const validation = validateLogin(email, password);
-        if (!validation.isValid) {
-            setErrors({
-                email: validation.email || undefined,
-                password: validation.password || undefined,
-            });
-            return;
-        }
-        setErrors({});
-        setLoading(true);
-        try {
-            const result = await authApi.login(email, password);
-            // Mark onboarding state
-            if (!result.user.onboardingDone) {
-                navigation.getParent()?.navigate('ProfileSetup');
-            } else {
-                navigation.getParent()?.navigate('Main');
-            }
-        } catch (err: any) {
-            Alert.alert('Login Failed', err.message || 'Invalid email or password');
-        } finally {
-            setLoading(false);
-        }
-    };
+  const handleLogin = async () => {
+    Keyboard.dismiss();
+    const validation = validateLogin(email, password);
+    if (!validation.isValid) {
+      setErrors({
+        email: validation.email || undefined,
+        password: validation.password || undefined,
+      });
+      return;
+    }
 
-    return (
-        <AuthContainer>
-            <AuthHeader />
+    setErrors({});
+    setLoading(true);
 
-            <View style={styles.body}>
-                <Text style={styles.screenTitle}>Sign In</Text>
+    try {
+      const result = await authApi.login(email, password);
+      // Mark onboarding state
+      if (!result.user.onboardingDone) {
+        navigation.getParent()?.navigate('ProfileSetup');
+      } else {
+        navigation.getParent()?.navigate('Main');
+      }
+    } catch (err: any) {
+      Alert.alert('Login Failed', err.message || 'Invalid email or password');
+    } finally {
+      setLoading(false);
+    }
+  };
 
-                <AuthInput
-                    iconName="mail-outline"
-                    placeholder="Email address"
-                    value={email}
-                    onChangeText={(t) => { setEmail(t); setErrors((e) => ({ ...e, email: undefined })); }}
-                    error={errors.email}
-                    keyboardType="email-address"
-                    autoCapitalize="none"
-                    autoComplete="email"
-                    returnKeyType="next"
-                    onSubmitEditing={() => passwordRef.current?.focus()}
-                    blurOnSubmit={false}
-                />
-                <AuthInput
-                    iconName="lock-closed-outline"
-                    placeholder="Password"
-                    value={password}
-                    onChangeText={(t) => { setPassword(t); setErrors((e) => ({ ...e, password: undefined })); }}
-                    error={errors.password}
-                    isPassword
-                    autoComplete="password"
-                    returnKeyType="done"
-                    onSubmitEditing={handleLogin}
-                />
+  return (
+    <AuthContainer>
+      <AuthHeader />
 
-                {/* Remember Me + Forgot */}
-                <View style={styles.rememberRow}>
-                    <TouchableOpacity
-                        style={styles.checkRow}
-                        onPress={() => setRememberMe((v) => !v)}
-                        activeOpacity={0.7}
-                        accessibilityRole="checkbox"
-                        accessibilityState={{ checked: rememberMe }}
-                        accessibilityLabel="Remember me"
-                    >
-                        <View style={[styles.checkbox, rememberMe && styles.checkboxChecked]}>
-                            {rememberMe && (
-                                <Ionicons name="checkmark" size={12} color={AuthColors.bgPrimary} />
-                            )}
-                        </View>
-                        <Text style={styles.rememberText}>Remember me</Text>
-                    </TouchableOpacity>
+      <View style={styles.body}>
+        <Text style={styles.screenTitle}>Sign In</Text>
 
-                    <TouchableOpacity
-                        onPress={() => navigation.navigate('ForgotPassword')}
-                        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                        accessibilityRole="link"
-                    >
-                        <Text style={styles.forgotText}>Forgot password?</Text>
-                    </TouchableOpacity>
-                </View>
+        <AuthInput
+          iconName="mail-outline"
+          placeholder="Email address"
+          value={email}
+          onChangeText={(t) => {
+            setEmail(t);
+            setErrors((e) => ({ ...e, email: undefined }));
+          }}
+          error={errors.email}
+          keyboardType="email-address"
+          autoCapitalize="none"
+          autoComplete="email"
+          returnKeyType="next"
+          onSubmitEditing={() => passwordRef.current?.focus()}
+          blurOnSubmit={false}
+        />
 
-                <AuthButton
-                    title="Login"
-                    onPress={handleLogin}
-                    loading={loading}
-                    style={styles.primaryBtn}
-                />
+        <AuthInput
+          iconName="lock-closed-outline"
+          placeholder="Password"
+          value={password}
+          onChangeText={(t) => {
+            setPassword(t);
+            setErrors((e) => ({ ...e, password: undefined }));
+          }}
+          error={errors.password}
+          isPassword
+          autoComplete="password"
+          returnKeyType="done"
+          onSubmitEditing={handleLogin}
+        />
 
-                {/* Divider */}
-                <View style={styles.divider}>
-                    <View style={styles.line} />
-                    <Text style={styles.orText}>Or</Text>
-                    <View style={styles.line} />
-                </View>
-
-                <SocialButton type="google" onPress={() => { }} />
-                <SocialButton type="guest" onPress={() => navigation.getParent()?.navigate('Main')} />
-
-                <View style={styles.footer}>
-                    <Text style={styles.footerText}>Don't have an account? </Text>
-                    <TouchableOpacity
-                        onPress={() => navigation.navigate('Register')}
-                        hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
-                    >
-                        <Text style={styles.footerLink}>Create Account</Text>
-                    </TouchableOpacity>
-                </View>
+        {/* Remember Me + Forgot */}
+        <View style={styles.rememberRow}>
+          <TouchableOpacity
+            style={styles.checkRow}
+            onPress={() => setRememberMe((v) => !v)}
+            activeOpacity={0.7}
+            accessibilityRole="checkbox"
+            accessibilityState={{ checked: rememberMe }}
+            accessibilityLabel="Remember me"
+          >
+            <View style={[styles.checkbox, rememberMe && styles.checkboxChecked]}>
+              {rememberMe && <Ionicons name="checkmark" size={12} color={AuthColors.bgPrimary} />}
             </View>
-        </AuthContainer>
-    );
+            <Text style={styles.rememberText}>Remember me</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            onPress={() => navigation.navigate('ForgotPassword')}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            accessibilityRole="link"
+          >
+            <Text style={styles.forgotText}>Forgot password?</Text>
+          </TouchableOpacity>
+        </View>
+
+        <AuthButton title="Login" onPress={handleLogin} loading={loading} style={styles.primaryBtn} />
+
+        {/* Divider */}
+        <View style={styles.divider}>
+          <View style={styles.line} />
+          <Text style={styles.orText}>Or</Text>
+          <View style={styles.line} />
+        </View>
+
+        <SocialButton
+          type="guest"
+          onPress={() => {
+            // Guest mode: persist guest flag, then show Main (Home) UI.
+            useAuthStore.getState().setGuest(true);
+            navigateRoot('Main');
+          }}
+        />
+
+        <View style={styles.footer}>
+          <Text style={styles.footerText}>Don't have an account? </Text>
+          <TouchableOpacity
+            onPress={() => navigation.navigate('Register')}
+            hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
+          >
+            <Text style={styles.footerLink}>Create Account</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </AuthContainer>
+  );
 };
 
 const styles = StyleSheet.create({
-    body: {
-        flex: 1,
-        paddingHorizontal: 24,
-        paddingTop: 26,
-    },
-    screenTitle: {
-        fontSize: 24,
-        fontWeight: '800',
-        color: '#FFFFFF',
-        marginBottom: 22,
-        letterSpacing: 0.2,
-    },
-    rememberRow: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: 22,
-        marginTop: 4,
-    },
-    checkRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        minHeight: 44,
-    },
-    checkbox: {
-        width: 20,
-        height: 20,
-        borderRadius: 6,
-        borderWidth: 1.5,
-        borderColor: AuthColors.checkboxBorder,
-        marginRight: 9,
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    checkboxChecked: {
-        backgroundColor: '#FFFFFF',
-        borderColor: '#FFFFFF',
-    },
-    rememberText: {
-        fontSize: 13,
-        color: AuthColors.textSecondary,
-        fontWeight: '500',
-    },
-    forgotText: {
-        fontSize: 13,
-        color: '#FFFFFF',
-        fontWeight: '600',
-    },
-    primaryBtn: {
-        marginBottom: 22,
-    },
-    divider: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        marginBottom: 18,
-    },
-    line: {
-        flex: 1,
-        height: 1,
-        backgroundColor: AuthColors.divider,
-    },
-    orText: {
-        color: AuthColors.textMuted,
-        fontSize: 13,
-        marginHorizontal: 14,
-        fontWeight: '500',
-    },
-    footer: {
-        flexDirection: 'row',
-        justifyContent: 'center',
-        alignItems: 'center',
-        marginTop: 10,
-        paddingBottom: 4,
-    },
-    footerText: {
-        fontSize: 13,
-        color: AuthColors.textSecondary,
-    },
-    footerLink: {
-        fontSize: 13,
-        color: '#FFFFFF',
-        fontWeight: '700',
-    },
+  body: {
+    flex: 1,
+    paddingHorizontal: 24,
+    paddingTop: 26,
+  },
+  screenTitle: {
+    fontSize: 24,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    marginBottom: 22,
+    letterSpacing: 0.2,
+  },
+  rememberRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 22,
+    marginTop: 4,
+  },
+  checkRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    minHeight: 44,
+  },
+  checkbox: {
+    width: 20,
+    height: 20,
+    borderRadius: 6,
+    borderWidth: 1.5,
+    borderColor: AuthColors.checkboxBorder,
+    marginRight: 9,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  checkboxChecked: {
+    backgroundColor: '#FFFFFF',
+    borderColor: '#FFFFFF',
+  },
+  rememberText: {
+    fontSize: 13,
+    color: AuthColors.textSecondary,
+    fontWeight: '500',
+  },
+  forgotText: {
+    fontSize: 13,
+    color: '#FFFFFF',
+    fontWeight: '600',
+  },
+  primaryBtn: {
+    marginBottom: 22,
+  },
+  divider: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 18,
+  },
+  line: {
+    flex: 1,
+    height: 1,
+    backgroundColor: AuthColors.divider,
+  },
+  orText: {
+    color: AuthColors.textMuted,
+    fontSize: 13,
+    marginHorizontal: 14,
+    fontWeight: '500',
+  },
+  footer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 10,
+    paddingBottom: 4,
+  },
+  footerText: {
+    fontSize: 13,
+    color: AuthColors.textSecondary,
+  },
+  footerLink: {
+    fontSize: 13,
+    color: '#FFFFFF',
+    fontWeight: '700',
+  },
 });
 
 export default LoginScreen;
+

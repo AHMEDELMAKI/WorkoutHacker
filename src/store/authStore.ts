@@ -7,6 +7,7 @@ import { create } from 'zustand';
 import { authApi, AuthUser } from '../services/api/auth.api';
 import { secureStorage } from '../services/secureStorage';
 import { userApi } from '../services/api/user.api';
+import { getGuestMode, setGuestMode } from '../services/guestMode';
 
 interface AuthState {
     user: AuthUser | null;
@@ -14,9 +15,13 @@ interface AuthState {
     isLoading: boolean;
     isInitialized: boolean;
     error: string | null;
+    isGuest: boolean;
 
     // Actions
     initialize: () => Promise<void>;
+    setGuest: (enabled: boolean) => Promise<void>;
+
+
     login: (email: string, password: string) => Promise<void>;
     register: (email: string, password: string, displayName?: string) => Promise<{ email: string }>;
     logout: () => Promise<void>;
@@ -30,11 +35,23 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     isLoading: false,
     isInitialized: false,
     error: null,
+    isGuest: false,
+
 
     /**
      * Called on app startup to restore session from secure storage.
      */
     initialize: async () => {
+        // Guest mode is persisted in AsyncStorage and bypasses secure-token auth.
+        const guestEnabled = await getGuestMode();
+        set({ isGuest: guestEnabled });
+
+        // For guests we intentionally skip secureStorage token checks.
+        if (guestEnabled) {
+            set({ isAuthenticated: false, isInitialized: true, isLoading: false, user: null });
+            return;
+        }
+
         set({ isLoading: true });
         try {
             const hasTokens = await secureStorage.hasTokens();
@@ -117,5 +134,16 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         }
     },
 
+    setGuest: async (enabled: boolean) => {
+        await setGuestMode(enabled);
+        set({ isGuest: enabled });
+        if (enabled) {
+            // Ensure we don't accidentally treat a guest as authenticated.
+            set({ user: null, isAuthenticated: false, isInitialized: true, isLoading: false, error: null });
+        }
+        // When disabling guest mode, app will rely on secure token initialization on next launch.
+    },
+
     clearError: () => set({ error: null }),
 }));
+

@@ -17,7 +17,9 @@ const Stack = createNativeStackNavigator<RootStackParamList>();
 const AppNavigator = () => {
     const user = useAuthStore(s => s.user);
     const isAuthenticated = useAuthStore(s => s.isAuthenticated);
+    const isGuest = useAuthStore(s => s.isGuest);
     const isInitialized = useAuthStore(s => s.isInitialized);
+
 
     if (!isInitialized) {
         return (
@@ -31,22 +33,23 @@ const AppNavigator = () => {
         <NavigationContainer ref={navigationRef}>
             <GlobalVoiceController />
             <Stack.Navigator screenOptions={{ headerShown: false }}>
-                {!isAuthenticated ? (
-                    // 1. Not Authenticated: Onboarding -> Auth
+                {!isAuthenticated && !isGuest ? (
+                    // 1. Not Authenticated (and not guest): Onboarding -> Auth
                     <>
                         <Stack.Screen name="Onboarding" component={OnboardingNavigator} />
                         <Stack.Screen name="Auth" component={AuthNavigator} />
                     </>
-                ) : !user?.onboardingDone ? (
-                    // 2. Authenticated but Onboarding not done
+                ) : !isGuest && !user?.onboardingDone ? (
+                    // 2. Authenticated but Onboarding not done (guest bypasses this)
                     <Stack.Screen name="ProfileSetup" component={ProfileSetupNavigator} />
                 ) : (
-                    // 3. Fully ready
+                    // 3. Fully ready or guest landing
                     <>
                         <Stack.Screen name="Main" component={MainNavigator} />
                         <Stack.Screen name="FatigueCheck" component={FatigueCheckNavigator} />
                     </>
                 )}
+
             </Stack.Navigator>
         </NavigationContainer>
     );

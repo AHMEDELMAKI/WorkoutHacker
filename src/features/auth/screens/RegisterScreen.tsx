@@ -17,6 +17,10 @@ import AuthContainer from '../components/AuthContainer';
 import AuthHeader from '../components/AuthHeader';
 import AuthInput from '../components/AuthInput';
 import SocialButton from '../components/SocialButton';
+import { navigateRoot } from '../../../services/navigationService';
+import { useAuthStore } from '../../../store/authStore';
+
+
 
 type Props = AuthStackScreenProps<'Register'>;
 
@@ -124,8 +128,19 @@ const RegisterScreen: React.FC<Props> = ({ navigation }) => {
           <View style={styles.line} />
         </View>
 
-        <SocialButton type="google" onPress={() => { }} />
-        <SocialButton type="guest" onPress={() => navigation.getParent()?.navigate('Main')} />
+        <SocialButton
+          type="guest"
+          onPress={() => {
+            // Guest mode: persist guest flag, then show Main (Home) UI.
+            void useAuthStore.getState().setGuest(true);
+            navigateRoot('Main');
+          }}
+
+        />
+
+
+
+
 
         <View style={styles.footer}>
           <Text style={styles.footerText}>Already have an account? </Text>
