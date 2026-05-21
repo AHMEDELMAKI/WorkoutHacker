@@ -1,3 +1,0 @@
-- [x] Update scripts/sync-ml-assets.js to hard-fail when exercise_classifier_rf.json is detected as likely 404/invalid text
-- [x] Add the same hard-fail validation for tempo_classifier.json
-- [x] Run the asset sync script (postinstall) and verify it no longer silently warns about invalid model JSON

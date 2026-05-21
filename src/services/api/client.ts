@@ -6,8 +6,8 @@
  * - Dispatches logout on unrecoverable auth failure
  */
 import { Platform } from 'react-native';
-import { secureStorage } from './secureStorage';
-import { navigationService } from './navigationService';
+import { secureStorage } from '../secureStorage';
+import { navigationService } from '../navigationService';
 
 // Android emulator uses 10.0.2.2 to reach the host machine's localhost.
 // Change this to your server's LAN IP for physical device testing.
