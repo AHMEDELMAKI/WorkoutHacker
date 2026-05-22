@@ -6,7 +6,8 @@ import type { WorkoutStackParamList } from '../../../navigation/types';
 import { WT } from '../../../theme/workoutTheme';
 import PrimaryWorkoutButton from '../components/PrimaryWorkoutButton';
 import WorkoutHeader from '../components/WorkoutHeader';
-import { ExerciseType, upperBodyExercises } from '../data/workoutData';
+import { ExerciseType } from '../data/workoutData';
+import { getCategoryByRoute, getExercisesByRoute } from '../data/workoutCategoryHelpers';
 
 type Props = NativeStackScreenProps<WorkoutStackParamList, 'UpperWorkout'>;
 
@@ -15,13 +16,12 @@ const ExerciseCard: React.FC<{ exercise: ExerciseType; onStart: () => void }> = 
     onStart,
 }) => (
     <View style={styles.exerciseCard}>
-        <View style={styles.emojiBox}>
-            <Text style={styles.emoji}>{exercise.emoji}</Text>
-        </View>
         <View style={styles.exerciseInfo}>
             <Text style={styles.exName}>{exercise.name}</Text>
             <Text style={styles.exSub}>{exercise.targetMuscles}</Text>
-            <Text style={styles.exSub}>{exercise.sets} sets · {exercise.reps}</Text>
+            <Text style={styles.exSub}>
+                {exercise.sets} sets · {exercise.reps}
+            </Text>
         </View>
         <TouchableOpacity onPress={onStart} style={styles.startPill} activeOpacity={0.8}>
             <Text style={styles.startText}>Start</Text>
@@ -29,36 +29,51 @@ const ExerciseCard: React.FC<{ exercise: ExerciseType; onStart: () => void }> = 
     </View>
 );
 
-const UpperWorkoutScreen: React.FC<Props> = ({ navigation }) => (
-    <View style={styles.root}>
-        <StatusBar barStyle="light-content" backgroundColor={WT.colors.header} />
-        <WorkoutHeader
-            title="Upper Body 💪"
-            subtitle="5 exercises · 35 min"
-            showBack
-            onBack={() => navigation.goBack()}
-        />
-        <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-            <Text style={styles.sectionLabel}>EXERCISES</Text>
-            {upperBodyExercises.map(ex => (
-                <ExerciseCard
-                    key={ex.id}
-                    exercise={ex}
-                    onStart={() => navigation.navigate('ExerciseDetails', { exercise: ex })}
-                />
-            ))}
-            <View style={styles.bottomBtn}>
-                <PrimaryWorkoutButton
-                    label="Start Your Workout"
-                    variant="white"
-                    onPress={() =>
-                        navigation.navigate('ExerciseDetails', { exercise: upperBodyExercises[0] })
-                    }
-                />
-            </View>
-        </ScrollView>
-    </View>
-);
+const UpperWorkoutScreen: React.FC<Props> = ({ navigation }) => {
+    const route = 'UpperWorkout' as const;
+    const category = getCategoryByRoute(route);
+    const exercises = getExercisesByRoute(route);
+
+    const title = category?.title ?? 'Upper Body';
+    const subtitle = category
+        ? `${category.exerciseCount} exercises · ${category.duration}`
+        : 'Exercises · Duration';
+
+    return (
+        <View style={styles.root}>
+            <StatusBar barStyle="light-content" backgroundColor={WT.colors.header} />
+            <WorkoutHeader
+                title={title}
+                subtitle={subtitle}
+                showBack
+                onBack={() => navigation.goBack()}
+            />
+            <ScrollView
+                contentContainerStyle={styles.content}
+                showsVerticalScrollIndicator={false}
+            >
+                <Text style={styles.sectionLabel}>EXERCISES</Text>
+                {exercises.map(ex => (
+                    <ExerciseCard
+                        key={ex.id}
+                        exercise={ex}
+                        onStart={() => navigation.navigate('ExerciseDetails', { exercise: ex })}
+                    />
+                ))}
+                <View style={styles.bottomBtn}>
+                    <PrimaryWorkoutButton
+                        label="Start Your Workout"
+                        variant="white"
+                        onPress={() => {
+                            const first = exercises[0];
+                            if (first) navigation.navigate('ExerciseDetails', { exercise: first });
+                        }}
+                    />
+                </View>
+            </ScrollView>
+        </View>
+    );
+};
 
 const styles = StyleSheet.create({
     root: { flex: 1, backgroundColor: WT.colors.background },
@@ -85,17 +100,6 @@ const styles = StyleSheet.create({
         shadowRadius: 8,
         elevation: 3,
     },
-    emojiBox: {
-        width: 44,
-        height: 44,
-        borderRadius: 22,
-        backgroundColor: 'rgba(92,140,196,0.12)',
-        alignItems: 'center',
-        justifyContent: 'center',
-        marginRight: WT.spacing.md,
-        flexShrink: 0,
-    },
-    emoji: { fontSize: 22 },
     exerciseInfo: { flex: 1 },
     exName: { fontSize: 16, fontWeight: '700', color: WT.colors.textDark, marginBottom: 3 },
     exSub: { fontSize: 12, color: WT.colors.textMuted, lineHeight: 16 },

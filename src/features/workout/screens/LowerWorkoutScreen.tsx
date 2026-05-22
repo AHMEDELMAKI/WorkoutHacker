@@ -6,7 +6,8 @@ import type { WorkoutStackParamList } from '../../../navigation/types';
 import { WT } from '../../../theme/workoutTheme';
 import PrimaryWorkoutButton from '../components/PrimaryWorkoutButton';
 import WorkoutHeader from '../components/WorkoutHeader';
-import { ExerciseType, lowerBodyExercises } from '../data/workoutData';
+import { ExerciseType } from '../data/workoutData';
+import { getCategoryByRoute, getExercisesByRoute } from '../data/workoutCategoryHelpers';
 
 type Props = NativeStackScreenProps<WorkoutStackParamList, 'LowerWorkout'>;
 
@@ -29,36 +30,48 @@ const ExerciseCard: React.FC<{ exercise: ExerciseType; onStart: () => void }> = 
     </View>
 );
 
-const LowerWorkoutScreen: React.FC<Props> = ({ navigation }) => (
-    <View style={styles.root}>
-        <StatusBar barStyle="light-content" backgroundColor={WT.colors.header} />
-        <WorkoutHeader
-            title="Lower Body 🦵"
-            subtitle="5 exercises · 40 min"
-            showBack
-            onBack={() => navigation.goBack()}
-        />
-        <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-            <Text style={styles.sectionLabel}>EXERCISES</Text>
-            {lowerBodyExercises.map(ex => (
-                <ExerciseCard
-                    key={ex.id}
-                    exercise={ex}
-                    onStart={() => navigation.navigate('ExerciseDetails', { exercise: ex })}
-                />
-            ))}
-            <View style={styles.bottomBtn}>
-                <PrimaryWorkoutButton
-                    label="Start Your Workout"
-                    variant="white"
-                    onPress={() =>
-                        navigation.navigate('ExerciseDetails', { exercise: lowerBodyExercises[0] })
-                    }
-                />
-            </View>
-        </ScrollView>
-    </View>
-);
+const LowerWorkoutScreen: React.FC<Props> = ({ navigation }) => {
+    const route = 'LowerWorkout' as const;
+    const category = getCategoryByRoute(route);
+    const exercises = getExercisesByRoute(route);
+
+    const title = category?.title ?? 'Lower Body';
+    const subtitle = category
+        ? `${category.exerciseCount} exercises · ${category.duration}`
+        : 'Exercises · Duration';
+
+    return (
+        <View style={styles.root}>
+            <StatusBar barStyle="light-content" backgroundColor={WT.colors.header} />
+            <WorkoutHeader
+                title={title}
+                subtitle={subtitle}
+                showBack
+                onBack={() => navigation.goBack()}
+            />
+            <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+                <Text style={styles.sectionLabel}>EXERCISES</Text>
+                {exercises.map(ex => (
+                    <ExerciseCard
+                        key={ex.id}
+                        exercise={ex}
+                        onStart={() => navigation.navigate('ExerciseDetails', { exercise: ex })}
+                    />
+                ))}
+                <View style={styles.bottomBtn}>
+                    <PrimaryWorkoutButton
+                        label="Start Your Workout"
+                        variant="white"
+                        onPress={() => {
+                            const first = exercises[0];
+                            if (first) navigation.navigate('ExerciseDetails', { exercise: first });
+                        }}
+                    />
+                </View>
+            </ScrollView>
+        </View>
+    );
+};
 
 const styles = StyleSheet.create({
     root: { flex: 1, backgroundColor: WT.colors.background },

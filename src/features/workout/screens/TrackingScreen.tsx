@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Camera, useCameraDevice, useCameraPermission } from 'react-native-vision-camera';
@@ -47,6 +47,20 @@ const TrackingScreen: React.FC<Props> = ({ route, navigation }) => {
   const [isPaused, setIsPaused] = useState(false);
   const [cameraEnabled, setCameraEnabled] = useState(false);
   const pulseAnim = useRef(new Animated.Value(1)).current;
+
+  const ghostGuideKey = (() => {
+    const name = (exercise?.name ?? '').toLowerCase();
+
+    // Mirrors GhostGuideTestScreen exercise labels loosely.
+    if (name.includes('bicep')) return 'bicep_curl';
+    if (name.includes('tricep')) return 'triceps_extension';
+    if (name.includes('shoulder press') || (name.includes('shoulder') && name.includes('press'))) return 'shoulder_press';
+    if (name.includes('front raise') || (name.includes('front') && name.includes('raise'))) return 'front_raise';
+    if (name.includes('lateral raise') || (name.includes('lateral') && name.includes('raise'))) return 'lateral_raise';
+
+    // If your exercise names don't match yet, extend these heuristics.
+    return null as null | 'bicep_curl' | 'shoulder_press' | 'front_raise' | 'lateral_raise' | 'triceps_extension';
+  })();
 
   // AI Pipeline Hook
   const { frameProcessor } = useAiPipeline();
@@ -197,7 +211,11 @@ const TrackingScreen: React.FC<Props> = ({ route, navigation }) => {
               style={[styles.pauseBtn, isPaused && styles.resumeBtn]}
               activeOpacity={0.85}
             >
-              <Ionicons name={isPaused ? 'play' : 'pause'} size={20} color={WT.colors.textLight} />
+              <Ionicons
+                name={isPaused ? 'play' : 'pause'}
+                size={20}
+                color={WT.colors.textLight}
+              />
               <Text style={styles.pauseLabel}>{isPaused ? 'Resume' : 'Pause'}</Text>
             </TouchableOpacity>
 
@@ -207,6 +225,24 @@ const TrackingScreen: React.FC<Props> = ({ route, navigation }) => {
               style={styles.endBtn}
               onPress={endWorkout}
             />
+          </View>
+
+          <View style={styles.ghostTempoRow}>
+            <TouchableOpacity
+              style={styles.ghostTempoBtn}
+              onPress={() => navigation.navigate('GhostGuideTest')}
+              activeOpacity={0.9}
+            >
+              <Text style={styles.ghostTempoBtnText}>Ghost Guide</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.ghostTempoBtnAlt}
+              onPress={() => navigation.navigate('TempoClassifierTest')}
+              activeOpacity={0.9}
+            >
+              <Text style={styles.ghostTempoBtnText}>Tempo</Text>
+            </TouchableOpacity>
           </View>
         </ScrollView>
       </SafeAreaView>
@@ -298,6 +334,36 @@ const styles = StyleSheet.create({
   metricLabel: { fontSize: 14, color: WT.colors.textMuted },
   metricValue: { fontSize: 14, fontWeight: '700' },
   btnRow: { flexDirection: 'row', gap: WT.spacing.md, alignItems: 'center' },
+
+  ghostTempoRow: {
+    flexDirection: 'row',
+    gap: WT.spacing.md,
+    alignItems: 'center',
+    marginTop: WT.spacing.md,
+  },
+  ghostTempoBtn: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: WT.radius.xl,
+    backgroundColor: 'rgba(140, 92, 196, 0.18)',
+    borderWidth: 1,
+    borderColor: 'rgba(140, 92, 196, 0.35)',
+    alignItems: 'center',
+  },
+  ghostTempoBtnAlt: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: WT.radius.xl,
+    backgroundColor: 'rgba(255, 122, 89, 0.16)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 122, 89, 0.35)',
+    alignItems: 'center',
+  },
+  ghostTempoBtnText: {
+    color: WT.colors.textLight,
+    fontSize: 12,
+    fontWeight: '800',
+  },
   pauseBtn: {
     flex: 1,
     height: 54,

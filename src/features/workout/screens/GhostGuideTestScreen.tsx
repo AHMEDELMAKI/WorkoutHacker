@@ -54,6 +54,90 @@ const EXERCISES = {
   },
 } as const;
 
+type GhostPoint = { x: number; y: number; visibility?: number } | null;
+
+function clamp01(n: number) {
+  return Math.min(1, Math.max(0, n));
+}
+
+function normalizeGhostPointsToLandmarkIndex(points: any): GhostPoint[] | null {
+  // We expect 33 pose landmarks (ids 0..32). GhostGuide output shape can vary,
+  // so we normalize into landmark-indexed array.
+  if (!points) return null;
+
+  const normalizePt = (p: any): GhostPoint => {
+    if (!p) return null;
+
+    // Common shape: { x, y, visibility }
+    if (typeof p.x === 'number' && typeof p.y === 'number') {
+      const v = typeof p.visibility === 'number' ? p.visibility : undefined;
+      return { x: clamp01(p.x), y: clamp01(p.y), visibility: v };
+    }
+
+    // Sometimes flattened: [x, y, visibility?]
+    if (Array.isArray(p) && p.length >= 2) {
+      const x = Number(p[0]);
+      const y = Number(p[1]);
+      const v = p.length >= 3 ? Number(p[2]) : undefined;
+      if (Number.isFinite(x) && Number.isFinite(y)) {
+        return { x: clamp01(x), y: clamp01(y), visibility: v };
+      }
+    }
+
+    return null;
+  };
+
+  // Shape A: array of landmark-like points (possibly already ordered)
+  if (Array.isArray(points)) {
+    const out: GhostPoint[] = new Array(33).fill(null);
+    // If array length matches 33, treat as index-aligned
+    if (points.length === 33) {
+      for (let i = 0; i < 33; i++) {
+        out[i] = normalizePt(points[i]);
+      }
+      return out;
+    }
+
+    // Otherwise try to map by embedded index / id
+    for (let i = 0; i < points.length; i++) {
+      const p = points[i];
+      const idx =
+        typeof p?.index === 'number'
+          ? p.index
+          : typeof p?.id === 'number'
+            ? p.id
+            : typeof p?.landmarkId === 'number'
+              ? p.landmarkId
+              : null;
+
+      if (typeof idx === 'number' && idx >= 0 && idx < 33) {
+        out[idx] = normalizePt(p);
+      }
+    }
+
+    // Fallback: if array looks ordered-ish, just take first 33
+    // (better than rendering nothing)
+    if (out.some(Boolean)) return out;
+    for (let i = 0; i < Math.min(points.length, 33); i++) {
+      out[i] = normalizePt(points[i]);
+    }
+    return out;
+  }
+
+  // Shape B: object keyed by index
+  if (typeof points === 'object') {
+    const out: GhostPoint[] = new Array(33).fill(null);
+    for (const [k, v] of Object.entries(points)) {
+      const idx = Number(k);
+      if (Number.isNaN(idx) || idx < 0 || idx >= 33) continue;
+      out[idx] = normalizePt(v);
+    }
+    return out;
+  }
+
+  return null;
+}
+
 function AppContent() {
   const isDarkMode = useColorScheme() === 'dark';
   const insets = useSafeAreaInsets();
@@ -73,14 +157,19 @@ function AppContent() {
   // Playback states
   const [isPlaying, setIsPlaying] = useState(false);
   const applyGhostPoseRef = useRef(false);
+
   const [currentFrameIndex, _setCurrentFrameIndex] = useState(0);
   const currentFrameRef = useRef(currentFrameIndex);
+
   const setCurrentFrameIndex = useCallback((value: any) => {
     const newVal =
       typeof value === 'function' ? value(currentFrameRef.current) : value;
-    currentFrameRef.current = newVal;
-    _setCurrentFrameIndex(newVal);
-  }, []);
+
+    const clamped = Math.max(0, Math.min(totalFrames - 1, Math.round(newVal)));
+    currentFrameRef.current = clamped;
+    _setCurrentFrameIndex(clamped);
+  }, [totalFrames]);
+
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
   const playbackInterval = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -99,6 +188,7 @@ function AppContent() {
       setStatus(`Reference loaded: ${totalFrames} frames`);
       currentFrameRef.current = 0;
       _setCurrentFrameIndex(0);
+      applyGhostPoseRef.current = false;
     } catch (e) {
       setStatus(`Error: ${e}`);
     }
@@ -192,15 +282,21 @@ function AppContent() {
   const containerBgColor = isDarkMode ? '#000' : '#f5f5f5';
 
   const ghostPointsForRender = result?.ghostSkeleton?.points ?? null;
-  const ghostUpperBodyIndices = new Set([
-    11, 12, 13, 14, 15, 16, 23, 24,
-  ]);
 
+  const ghostLandmarks = useMemo(() => {
+    return normalizeGhostPointsToLandmarkIndex(ghostPointsForRender);
+  }, [ghostPointsForRender]);
+
+  const ghostUpperBodyIndices = new Set([11, 12, 13, 14, 15, 16, 23, 24]);
+
+  const handleSliderChange = (value: number) => {
+    stopPlayback();
+    setCurrentFrameIndex(value);
+    applyGhostPoseRef.current = true;
+  };
 
   return (
-    <SafeAreaView
-      style={[styles.container, { backgroundColor: containerBgColor }]}
-    >
+    <SafeAreaView style={[styles.container, { backgroundColor: containerBgColor }]}>
       <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
       <View style={[styles.mainContainer, { paddingTop: insets.top }]}>
 
@@ -254,8 +350,8 @@ function AppContent() {
                </>
              )}
 
-             {/* Ghost/Reference skeleton from library (already calibrated) - render LAST to appear on top */}
-              {ghostPointsForRender && (
+             {/* Ghost/Reference skeleton from library - render LAST to appear on top */}
+              {ghostLandmarks && (
                 <>
                   {[
                     [11, 13],
@@ -267,12 +363,15 @@ function AppContent() {
                     [12, 24],
                     [23, 24],
                   ].map(([i, j], idx) => {
-                    const p1 = ghostPointsForRender[i];
-                    const p2 = ghostPointsForRender[j];
-                    if (!ghostUpperBodyIndices.has(i) || !ghostUpperBodyIndices.has(j)) {
-                      return null;
-                    }
+                    const p1 = ghostLandmarks[i];
+                    const p2 = ghostLandmarks[j];
+
+                    if (!ghostUpperBodyIndices.has(i) || !ghostUpperBodyIndices.has(j)) return null;
                     if (!p1 || !p2) return null;
+
+                    if (typeof p1.visibility === 'number' && p1.visibility < 0.5) return null;
+                    if (typeof p2.visibility === 'number' && p2.visibility < 0.5) return null;
+
                     return (
                       <Line
                         key={`ghost-conn-${idx}`}
@@ -285,20 +384,26 @@ function AppContent() {
                       />
                     );
                   })}
-                  {ghostPointsForRender
-                    .map((p: any, i: number) => ({ p, i }))
-                    .filter(({ i }) => ghostUpperBodyIndices.has(i))
-                    .map(({ p, i }) => (
-                      <Circle
-                        key={`ghost-lm-${i}`}
-                        cx={p.x}
-                        cy={p.y}
-                        r="0.02"
-                        fill="rgba(255, 0, 0, 0.9)"
-                      />
-                    ))}
-               </>
-             )}
+
+                  {ghostLandmarks
+                    .map((p, i) => ({ p, i }))
+                    .filter(({ p, i }) => ghostUpperBodyIndices.has(i) && !!p)
+                    .map(({ p, i }) => {
+                      if (!p) return null;
+                      if (typeof p.visibility === 'number' && p.visibility < 0.5) return null;
+
+                      return (
+                        <Circle
+                          key={`ghost-lm-${i}`}
+                          cx={p.x}
+                          cy={p.y}
+                          r="0.02"
+                          fill="rgba(255, 0, 0, 0.9)"
+                        />
+                      );
+                    })}
+                </>
+              )}
            </Svg>
         </View>
 
@@ -402,9 +507,7 @@ function AppContent() {
                 maximumValue={Math.max(0, totalFrames - 1)}
                 value={currentFrameRef.current}
                 onValueChange={(value) => {
-                  stopPlayback();
-                  const next = Math.round(value);
-                  setCurrentFrameIndex(next);
+                  handleSliderChange(value);
                 }}
                 step={1}
                 minimumTrackTintColor="#007AFF"

@@ -457,10 +457,29 @@ const ProgressScreen: React.FC<Props> = ({ navigation }) => {
                     </View>
 
                     {/* Weekly Volume */}
-                    <WeeklyVolumeChart bars={data.weeklyVolume.length > 0 ? data.weeklyVolume.map(v => ({ ...v, value: v.volume, label: v.day })) : WEEKLY_BARS} />
+                    <WeeklyVolumeChart
+                        bars={
+                            (data.weeklyVolume?.length ?? 0) > 0
+                                ? (data.weeklyVolume ?? []).map(v => ({ ...v, value: v.volume, label: v.day }))
+                                : WEEKLY_BARS
+                        }
+                    />
 
                     {/* Monthly Trend */}
-                    <MonthlyTrendChart data={data.monthlyTrend.length > 0 ? data.monthlyTrend.map(t => ({ month: t.month, score: t.score, week: 1, strength: t.score, endurance: t.score, recovery: t.score })) : MONTHLY_TREND} />
+                    <MonthlyTrendChart
+                        data={
+                            (data.monthlyTrend?.length ?? 0) > 0
+                                ? (data.monthlyTrend ?? []).map(t => ({
+                                    month: t.month,
+                                    score: t.score,
+                                    week: '1',
+                                    strength: t.score,
+                                    endurance: t.score,
+                                    recovery: t.score,
+                                }))
+                                : MONTHLY_TREND
+                        }
+                    />
 
                     {/* Consistency */}
                     <ConsistencyTracker />
@@ -474,34 +493,48 @@ const ProgressScreen: React.FC<Props> = ({ navigation }) => {
                                 <Text style={whStyles.seeAll}>See all</Text>
                             </TouchableOpacity>
                         </View>
-                        {data.recentWorkouts.map((w, index) => (
-                            <React.Fragment key={w.id}>
-                                <TouchableOpacity
-                                    style={whStyles.row}
-                                    activeOpacity={0.7}
-                                    onPress={() => navigation.navigate('WorkoutSummary', {
-                                        workoutType: w.workoutType as any,
-                                        score: w.score,
-                                        duration: w.duration,
-                                        calories: w.calories,
-                                        muscleFocus: [w.workoutType],
-                                        suggestions: [],
-                                    })}
-                                >
-                                    <View style={whStyles.iconWrap}>
-                                        <Ionicons name="barbell-outline" size={20} color={PT.accent} />
-                                    </View>
-                                    <View style={whStyles.info}>
-                                        <Text style={whStyles.wName}>{w.name}</Text>
-                                        <Text style={whStyles.wDur}>{w.duration}</Text>
-                                    </View>
-                                    <View style={whStyles.scoreBadge}>
-                                        <Text style={whStyles.score}>{w.score}</Text>
-                                    </View>
-                                </TouchableOpacity>
-                                {index < data.recentWorkouts.length - 1 && <View style={whStyles.sep} />}
-                            </React.Fragment>
-                        ))}
+
+                        {(data.recentWorkouts ?? []).length > 0 ? (
+                            (data.recentWorkouts ?? []).map((w, index) => (
+                                <React.Fragment key={w.id}>
+                                    <TouchableOpacity
+                                        style={whStyles.row}
+                                        activeOpacity={0.7}
+                                        onPress={() =>
+                                            navigation.navigate('WorkoutSummary', {
+                                                workoutType: w.workoutType as any,
+                                                score: w.score,
+                                                duration: w.duration,
+                                                calories: w.calories,
+                                                muscleFocus: [w.workoutType],
+                                                suggestions: [],
+                                            })
+                                        }
+                                    >
+                                        <View style={whStyles.iconWrap}>
+                                            <Ionicons name="barbell-outline" size={20} color={PT.accent} />
+                                        </View>
+                                        <View style={whStyles.info}>
+                                            <Text style={whStyles.wName}>{w.name}</Text>
+                                            <Text style={whStyles.wDur}>{w.duration}</Text>
+                                        </View>
+                                        <View style={whStyles.scoreBadge}>
+                                            <Text style={whStyles.score}>{w.score}</Text>
+                                        </View>
+                                    </TouchableOpacity>
+
+                                    {index < ((data.recentWorkouts ?? []).length - 1) && (
+                                        <View style={whStyles.sep} />
+                                    )}
+                                </React.Fragment>
+                            ))
+                        ) : (
+                            <View style={{ paddingVertical: 10 }}>
+                                <Text style={{ color: 'rgba(255,255,255,0.75)', fontWeight: '600' }}>
+                                    No recent workouts yet.
+                                </Text>
+                            </View>
+                        )}
                     </View>
 
                     {/* Personal Records */}

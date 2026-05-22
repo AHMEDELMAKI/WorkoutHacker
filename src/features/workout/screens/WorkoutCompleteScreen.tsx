@@ -169,12 +169,16 @@ const WorkoutCompleteScreen: React.FC<Props> = ({ route, navigation }) => {
                     <View style={styles.footerRow}>
                         <TouchableOpacity style={styles.homeBtn} onPress={goHome} activeOpacity={0.85}>
                             <Ionicons name="home-outline" size={20} color={WT.colors.primary} />
-                            <Text style={styles.homeBtnText}>Back to Home</Text>
+                            <Text style={styles.homeBtnText} numberOfLines={1}>
+                                Back to Home
+                            </Text>
                         </TouchableOpacity>
 
                         <TouchableOpacity style={styles.fatigueBtn} onPress={openFatigueCheck} activeOpacity={0.85}>
                             <Ionicons name="pulse-outline" size={20} color={WT.colors.primary} />
-                            <Text style={styles.fatigueBtnText}>Check Fatigue</Text>
+                            <Text style={styles.fatigueBtnText} numberOfLines={1}>
+                                Check Fatigue
+                            </Text>
                         </TouchableOpacity>
                     </View>
                 </View>
@@ -268,7 +272,13 @@ const styles = StyleSheet.create({
         shadowRadius: 10,
         elevation: 6,
     },
-    homeBtnText: { fontSize: 16, fontWeight: '800', color: WT.colors.primary },
+    homeBtnText: {
+        fontSize: 16,
+        fontWeight: '800',
+        color: WT.colors.primary,
+        textAlign: 'center',
+        includeFontPadding: false,
+    },
     footerRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 12 },
     fatigueBtn: {
         marginTop: WT.spacing.sm,
