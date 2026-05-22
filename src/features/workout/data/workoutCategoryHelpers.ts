@@ -1,7 +1,18 @@
 import type { ExerciseType, WorkoutCategory } from './workoutData';
 import {
+  abdominalExercises,
+  bicepExercises,
+  calfExercises,
+  chestExercises,
+  deltoidExercises,
+  forearmExercises,
   fullBodyExercises,
+  latsExercises,
   lowerBodyExercises,
+  lumbarExercises,
+  quadExercises,
+  trapeziusExercises,
+  tricepExercises,
   upperBodyExercises,
   workoutCategories,
 } from './workoutData';
@@ -14,6 +25,7 @@ export function getCategoryByRoute(route: Route): WorkoutCategory | undefined {
 
 export function getExercisesByRoute(route: Route): ExerciseType[] {
   switch (route) {
+    // Core templates
     case 'FullBodyWorkout':
       return fullBodyExercises;
     case 'UpperWorkout':
@@ -21,6 +33,32 @@ export function getExercisesByRoute(route: Route): ExerciseType[] {
     case 'LowerWorkout':
       return lowerBodyExercises;
     case 'CustomWorkout':
+      return [];
+
+    // Muscle group workouts
+    case 'DeltoidWorkout':
+      return deltoidExercises;
+    case 'BicepWorkout':
+      return bicepExercises;
+    case 'TricepWorkout':
+      return tricepExercises;
+    case 'ForearmWorkout':
+      return forearmExercises;
+    case 'ChestWorkout':
+      return chestExercises;
+    case 'AbdominalWorkout':
+      return abdominalExercises;
+    case 'LatsWorkout':
+      return latsExercises;
+    case 'TrapeziusWorkout':
+      return trapeziusExercises;
+    case 'LumbarWorkout':
+      return lumbarExercises;
+    case 'QuadWorkout':
+      return quadExercises;
+    case 'CalfWorkout':
+      return calfExercises;
+
     default:
       return [];
   }

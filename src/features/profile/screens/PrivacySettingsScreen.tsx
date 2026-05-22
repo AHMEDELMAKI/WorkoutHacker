@@ -16,6 +16,8 @@ import type { ProfileStackParamList } from '../../../navigation/types';
 import ProfileCard from '../components/ProfileCard';
 import { PPT } from '../components/ProfileTheme';
 
+import { useAuthStore } from '../../../store/authStore';
+
 type Props = NativeStackScreenProps<ProfileStackParamList, 'PrivacySettings'>;
 
 const PrivacySettingsScreen: React.FC<Props> = ({ navigation }) => {
@@ -23,7 +25,30 @@ const PrivacySettingsScreen: React.FC<Props> = ({ navigation }) => {
     const [cloudSync, setCloudSync] = React.useState(false);
     const [voiceCommands, setVoiceCommands] = React.useState(false);
 
+    const logout = useAuthStore(s => s.logout);
+
     const { spacing: S, font: F } = PPT;
+
+    const handleLogout = () => {
+        Alert.alert(
+            'Logout',
+            'Are you sure you want to logout?',
+            [
+                { text: 'Cancel', style: 'cancel' },
+                { 
+                    text: 'Logout', 
+                    style: 'destructive',
+                    onPress: async () => {
+                        try {
+                            await logout();
+                        } catch (error) {
+                            console.error('Logout failed:', error);
+                        }
+                    }
+                }
+            ]
+        );
+    };
 
     return (
         <View style={styles.root}>
@@ -104,7 +129,7 @@ const PrivacySettingsScreen: React.FC<Props> = ({ navigation }) => {
                 <TouchableOpacity
                     style={styles.logoutBtn}
                     activeOpacity={0.82}
-                    onPress={() => Alert.alert('Logout', 'Are you sure you want to logout?')}
+                    onPress={handleLogout}
                     accessibilityRole="button"
                     accessibilityLabel="Logout"
                 >

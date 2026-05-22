@@ -56,7 +56,7 @@ const pbStyles = StyleSheet.create({
     labelRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 },
     label: { fontSize: 14, color: PT.textSecondary, fontWeight: '600' },
     pct: { fontSize: 15, fontWeight: '800' },
-    track: { height: 10, backgroundColor: '#EDE8F3', borderRadius: 999, overflow: 'hidden' },
+    track: { height: 10, backgroundColor: PT.bgPrimary + '15', borderRadius: 999, overflow: 'hidden' },
     fill: { height: '100%', borderRadius: 999 },
 });
 
@@ -206,7 +206,7 @@ const styles = StyleSheet.create({
     heroTitle: {
         fontSize: 26,
         fontWeight: '800',
-        color: '#FFFFFF',
+        color: PT.cardBg,
         marginBottom: 6,
         textAlign: 'center',
     },
@@ -220,7 +220,7 @@ const styles = StyleSheet.create({
 
     // ── Cards ─────────────────────────────────────────────────────
     card: {
-        backgroundColor: '#FFFFFF',
+        backgroundColor: PT.cardBg,
         borderRadius: R.lg,
         paddingHorizontal: 20,
         paddingVertical: 16,
@@ -265,7 +265,7 @@ const styles = StyleSheet.create({
     },
     summaryLabel: {
         fontSize: 13,
-        color: '#777',
+        color: PT.textMuted,
         fontWeight: '500',
     },
     summaryValueWrap: {
@@ -278,7 +278,7 @@ const styles = StyleSheet.create({
         color: PT.textPrimary,
         textAlign: 'right',
     },
-    rowDivider: { height: 1, backgroundColor: '#F0EBF7', marginLeft: 48 },
+    rowDivider: { height: 1, backgroundColor: PT.bgPrimary + '10', marginLeft: 48 },
 
     // ── Suggestions ───────────────────────────────────────────────
     sugCard: {
@@ -301,7 +301,7 @@ const styles = StyleSheet.create({
     sugTitle: {
         fontSize: 16,
         fontWeight: '800',
-        color: '#FFFFFF',
+        color: PT.cardBg,
         textAlign: 'center',
     },
     sugRow: {
@@ -332,7 +332,7 @@ const styles = StyleSheet.create({
     },
     backBtn: {
         height: 54,
-        backgroundColor: '#FFFFFF',
+        backgroundColor: PT.cardBg,
         borderRadius: R.xl,
         alignItems: 'center',
         justifyContent: 'center',

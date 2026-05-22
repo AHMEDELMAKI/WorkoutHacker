@@ -52,7 +52,7 @@ export type MainTabParamList = {
     Home: undefined;
     Workout: { screen?: keyof WorkoutStackParamList; params?: any } | undefined;
     ProgressStack: undefined;   // wraps Progress + WorkoutSummary
-    AICoach: undefined;
+    AICoachStack: undefined;    // wraps AICoach + WorkoutPlanner
     ProfileStack: undefined;    // wraps Profile + Privacy + Help + About
 };
 
@@ -77,16 +77,41 @@ export type ProgressStackParamList = {
     };
 };
 
+// AI Coach stack (nested under AICoach tab)
+export type AICoachStackParamList = {
+    AICoachMain: undefined;
+    WorkoutPlanner: undefined;
+};
+
 // Workout Stack (nested under Workout tab)
 export type WorkoutStackParamList = {
     WorkoutSelection: undefined;
+
+    // Core templates
     FullBodyWorkout: undefined;
     UpperWorkout: undefined;
     LowerWorkout: undefined;
     CustomWorkout: undefined;
+
+    // Muscle group workouts
+    DeltoidWorkout: undefined;
+    BicepWorkout: undefined;
+    TricepWorkout: undefined;
+    ForearmWorkout: undefined;
+    ChestWorkout: undefined;
+    AbdominalWorkout: undefined;
+    LatsWorkout: undefined;
+    TrapeziusWorkout: undefined;
+    LumbarWorkout: undefined;
+    QuadWorkout: undefined;
+    CalfWorkout: undefined;
+
+    // Tests / diagnostics
     GhostGuideTest: undefined;
     TempoClassifierTest: undefined;
     WorkoutPlannerTest: undefined;
+
+    // Shared flow
     ExerciseDetails: { exercise: ExerciseType };
     Tracking: { exercise: ExerciseType };
     HeartRateFatigue: { workoutType: string };
@@ -112,6 +137,9 @@ export type ProfileStackScreenProps<T extends keyof ProfileStackParamList> =
 
 export type ProgressStackScreenProps<T extends keyof ProgressStackParamList> =
     NativeStackScreenProps<ProgressStackParamList, T>;
+
+export type AICoachStackScreenProps<T extends keyof AICoachStackParamList> =
+    NativeStackScreenProps<AICoachStackParamList, T>;
 
 export type WorkoutStackScreenProps<T extends keyof WorkoutStackParamList> =
     NativeStackScreenProps<WorkoutStackParamList, T>;

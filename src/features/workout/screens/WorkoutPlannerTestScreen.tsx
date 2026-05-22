@@ -15,6 +15,7 @@ import {
   View,
 } from 'react-native';
 import Clipboard from '@react-native-clipboard/clipboard';
+import { WT } from '../../../theme/workoutTheme';
 
 type Goal = 'strength' | 'hypertrophy' | 'other';
 type Level = 'beginner' | 'intermediate' | 'advanced';
@@ -825,55 +826,57 @@ function Choice({ label, active, onPress }: { label: string; active: boolean; on
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#f4f7f2',
+    backgroundColor: WT.colors.background,
   },
   container: {
-    padding: 16,
+    padding: WT.spacing.lg,
     paddingBottom: 40,
-    gap: 12,
+    gap: WT.spacing.sm,
   },
   title: {
     fontSize: 28,
     fontWeight: '800',
-    color: '#1b3424',
+    color: WT.colors.textLight,
   },
   subtitle: {
     fontSize: 14,
-    color: '#3f5e49',
+    color: WT.colors.textLight,
+    opacity: 0.85,
     marginBottom: 4,
   },
   card: {
-    backgroundColor: '#ffffff',
-    borderRadius: 12,
-    padding: 12,
+    backgroundColor: WT.colors.card,
+    borderRadius: WT.radius.md,
+    padding: WT.spacing.md,
     borderWidth: 1,
-    borderColor: '#dce6dd',
-    gap: 8,
+    borderColor: WT.colors.cardBorder,
+    gap: WT.spacing.sm,
+    ...WT.shadow.card,
   },
   row: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
+    gap: WT.spacing.xs,
   },
   label: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#1b3424',
+    color: WT.colors.textDark,
   },
   sectionTitle: {
-    marginTop: 8,
+    marginTop: WT.spacing.sm,
     fontSize: 15,
     fontWeight: '800',
-    color: '#244b31',
+    color: WT.colors.primary,
   },
   input: {
     borderWidth: 1,
-    borderColor: '#c4d4c5',
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
+    borderColor: WT.colors.cardBorder,
+    borderRadius: WT.radius.sm,
+    paddingHorizontal: WT.spacing.sm,
+    paddingVertical: WT.spacing.xs,
     fontSize: 16,
-    color: '#15311f',
+    color: WT.colors.textDark,
   },
   multilineInput: {
     minHeight: 80,
@@ -881,47 +884,48 @@ const styles = StyleSheet.create({
   helpText: {
     marginTop: -2,
     fontSize: 12,
-    color: '#3f5e49',
+    color: WT.colors.textMuted,
   },
   inlineSection: {
-    gap: 8,
+    gap: WT.spacing.sm,
   },
   choice: {
     borderRadius: 999,
     borderWidth: 1,
-    borderColor: '#8fae92',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    borderColor: WT.colors.primary,
+    paddingHorizontal: WT.spacing.sm,
+    paddingVertical: WT.spacing.xs,
   },
   choiceActive: {
-    backgroundColor: '#1f6b3a',
-    borderColor: '#1f6b3a',
+    backgroundColor: WT.colors.primary,
+    borderColor: WT.colors.primary,
   },
   choiceText: {
-    color: '#1f6b3a',
+    color: WT.colors.primary,
     fontWeight: '600',
   },
   choiceTextActive: {
-    color: '#ffffff',
+    color: WT.colors.textLight,
   },
   button: {
-    marginTop: 8,
-    borderRadius: 8,
-    backgroundColor: '#14522d',
+    marginTop: WT.spacing.sm,
+    borderRadius: WT.radius.sm,
+    backgroundColor: WT.colors.primaryDark,
     alignItems: 'center',
-    paddingVertical: 12,
+    paddingVertical: WT.spacing.sm + 2,
+    ...WT.shadow.button,
   },
   buttonText: {
-    color: '#ffffff',
+    color: WT.colors.textLight,
     fontWeight: '700',
     fontSize: 16,
   },
   spinner: {
-    marginTop: 8,
+    marginTop: WT.spacing.sm,
   },
   error: {
-    marginTop: 8,
-    color: '#9a1f1f',
+    marginTop: WT.spacing.sm,
+    color: WT.colors.danger,
     fontWeight: '600',
   },
   labelRow: {
@@ -930,21 +934,21 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   copyButton: {
-    borderRadius: 6,
+    borderRadius: WT.radius.sm,
     borderWidth: 1,
-    borderColor: '#1f6b3a',
-    paddingHorizontal: 10,
+    borderColor: WT.colors.primary,
+    paddingHorizontal: WT.spacing.sm,
     paddingVertical: 4,
   },
   copyButtonText: {
-    color: '#1f6b3a',
+    color: WT.colors.primary,
     fontSize: 12,
     fontWeight: '700',
   },
   code: {
     fontFamily: Platform.select({ ios: 'Menlo', android: 'monospace' }),
     fontSize: 12,
-    color: '#273a2c',
+    color: WT.colors.textDark,
   },
 });
 

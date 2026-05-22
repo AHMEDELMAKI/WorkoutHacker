@@ -42,11 +42,15 @@ const WorkoutCompleteScreen: React.FC<Props> = ({ route, navigation }) => {
     }, []);
 
     const goHome = () => {
-        navigation.getParent()?.navigate('Home');
+        navigation.navigate('Main' as any, { screen: 'Home' });
+    };
+
+    const goToProgress = () => {
+        navigation.navigate('Main' as any, { screen: 'ProgressStack' });
     };
     
     const openFatigueCheck = () => {
-        navigation.getParent()?.navigate('FatigueCheck' as never);
+        navigation.navigate('FatigueCheck' as any);
     };
     const muscleFocusGroups = workoutType
         .split(',')
@@ -166,6 +170,11 @@ const WorkoutCompleteScreen: React.FC<Props> = ({ route, navigation }) => {
 
                 {/* Footer actions */}
                 <View style={styles.footer}>
+                    <TouchableOpacity style={styles.progressBtn} onPress={goToProgress} activeOpacity={0.85}>
+                        <Ionicons name="stats-chart-outline" size={20} color="#FFFFFF" />
+                        <Text style={styles.progressBtnText}>View Full Progress</Text>
+                    </TouchableOpacity>
+
                     <View style={styles.footerRow}>
                         <TouchableOpacity style={styles.homeBtn} onPress={goHome} activeOpacity={0.85}>
                             <Ionicons name="home-outline" size={20} color={WT.colors.primary} />
@@ -201,7 +210,7 @@ const styles = StyleSheet.create({
         marginBottom: 14,
     },
     heroEmoji: { fontSize: 40 },
-    heroTitle: { fontSize: 26, fontWeight: '800', color: '#FFFFFF', marginBottom: 6, textAlign: 'center' },
+    heroTitle: { fontSize: 26, fontWeight: '800', color: WT.colors.textLight, marginBottom: 6, textAlign: 'center' },
     heroSub: { fontSize: 15, color: 'rgba(255,255,255,0.78)', textAlign: 'center', lineHeight: 22, fontWeight: '500' },
 
     card: {
@@ -252,15 +261,36 @@ const styles = StyleSheet.create({
         borderColor: 'rgba(255,255,255,0.25)',
     },
     sugHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginBottom: 12 },
-    sugTitle: { fontSize: 16, fontWeight: '800', color: '#FFFFFF', textAlign: 'center' },
+    sugTitle: { fontSize: 16, fontWeight: '800', color: WT.colors.textLight, textAlign: 'center' },
     sugRow: { flexDirection: 'row', alignItems: 'flex-start', gap: WT.spacing.sm, paddingVertical: 5 },
     sugBullet: { width: 6, height: 6, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.65)', marginTop: 8, flexShrink: 0 },
     sugText: { flex: 1, fontSize: 14, fontWeight: '600', color: '#FFFFFF', lineHeight: 22 },
 
     footer: { paddingHorizontal: WT.spacing.lg, paddingTop: WT.spacing.sm, paddingBottom: WT.spacing.lg },
+    progressBtn: {
+        height: 52,
+        backgroundColor: WT.colors.primary,
+        borderRadius: WT.radius.xl,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 10,
+        marginBottom: 12,
+        shadowColor: '#4A2878',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 10,
+        elevation: 6,
+    },
+    progressBtnText: {
+        fontSize: 16,
+        fontWeight: '800',
+        color: WT.colors.textLight,
+    },
     homeBtn: {
-        height: 54,
-        backgroundColor: '#FFFFFF',
+        flex: 1,
+        height: 50,
+        backgroundColor: WT.colors.textLight,
         borderRadius: WT.radius.xl,
         flexDirection: 'row',
         alignItems: 'center',
@@ -273,25 +303,25 @@ const styles = StyleSheet.create({
         elevation: 6,
     },
     homeBtnText: {
-        fontSize: 16,
+        fontSize: 14,
         fontWeight: '800',
         color: WT.colors.primary,
         textAlign: 'center',
-        includeFontPadding: false,
     },
     footerRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 12 },
     fatigueBtn: {
-        marginTop: WT.spacing.sm,
+        flex: 1,
         borderRadius: WT.radius.xl,
-        height: 46,
+        height: 50,
         alignItems: 'center',
         justifyContent: 'center',
-        borderWidth: 1,
-        borderColor: WT.colors.primary,
-        backgroundColor: 'rgba(140,92,196,0.08)',
-        paddingHorizontal: 16,
+        borderWidth: 1.5,
+        borderColor: WT.colors.textLight,
+        backgroundColor: 'rgba(255,255,255,0.12)',
+        flexDirection: 'row',
+        gap: 8,
     },
-    fatigueBtnText: { fontSize: 14, fontWeight: '800', color: WT.colors.primary },
+    fatigueBtnText: { fontSize: 14, fontWeight: '800', color: WT.colors.textLight },
 });
 
 export default WorkoutCompleteScreen;

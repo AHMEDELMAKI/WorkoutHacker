@@ -2,8 +2,6 @@ import Ionicons from 'react-native-vector-icons/Ionicons';
 import React, { useRef, useState } from 'react';
 import { Alert, Keyboard, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import type { AuthStackScreenProps } from '../../../navigation/types';
-import { authApi } from '../../../services/api/auth.api';
-import { navigateRoot } from '../../../services/navigationService';
 import { useAuthStore } from '../../../store/authStore';
 import { validateLogin } from '../../../utils/validation';
 import AuthButton from '../components/AuthButton';
@@ -19,38 +17,44 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [rememberMe, setRememberMe] = useState(false);
-  const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
-  const [loading, setLoading] = useState(false);
+  const [localErrors, setLocalErrors] = useState<{ email?: string; password?: string }>({});
+  
+  const login = useAuthStore((s) => s.login);
+  const setGuest = useAuthStore((s) => s.setGuest);
+  const isLoading = useAuthStore((s) => s.isLoading);
+  const globalError = useAuthStore((s) => s.error);
+  const clearError = useAuthStore((s) => s.clearError);
 
   const passwordRef = useRef<TextInput>(null);
 
   const handleLogin = async () => {
     Keyboard.dismiss();
+    clearError();
+    
     const validation = validateLogin(email, password);
     if (!validation.isValid) {
-      setErrors({
+      setLocalErrors({
         email: validation.email || undefined,
         password: validation.password || undefined,
       });
       return;
     }
 
-    setErrors({});
-    setLoading(true);
+    setLocalErrors({});
 
     try {
-      const result = await authApi.login(email, password);
-      // Mark onboarding state
-      if (!result.user.onboardingDone) {
-        navigation.getParent()?.navigate('ProfileSetup');
-      } else {
-        navigation.getParent()?.navigate('Main');
-      }
+      await login(email, password);
+      // AppNavigator will automatically transition to Main or ProfileSetup
+      // because isAuthenticated and user state change in the store.
     } catch (err: any) {
+      // Error is also in globalError, but we show alert for immediate feedback
       Alert.alert('Login Failed', err.message || 'Invalid email or password');
-    } finally {
-      setLoading(false);
     }
+  };
+
+  const handleGuestMode = async () => {
+    await setGuest(true);
+    // AppNavigator swaps the stack automatically
   };
 
   return (
@@ -66,9 +70,10 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
           value={email}
           onChangeText={(t) => {
             setEmail(t);
-            setErrors((e) => ({ ...e, email: undefined }));
+            setLocalErrors((e) => ({ ...e, email: undefined }));
+            if (globalError) clearError();
           }}
-          error={errors.email}
+          error={localErrors.email}
           keyboardType="email-address"
           autoCapitalize="none"
           autoComplete="email"
@@ -83,9 +88,10 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
           value={password}
           onChangeText={(t) => {
             setPassword(t);
-            setErrors((e) => ({ ...e, password: undefined }));
+            setLocalErrors((e) => ({ ...e, password: undefined }));
+            if (globalError) clearError();
           }}
-          error={errors.password}
+          error={localErrors.password}
           isPassword
           autoComplete="password"
           returnKeyType="done"
@@ -117,7 +123,7 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
           </TouchableOpacity>
         </View>
 
-        <AuthButton title="Login" onPress={handleLogin} loading={loading} style={styles.primaryBtn} />
+        <AuthButton title="Login" onPress={handleLogin} loading={isLoading} style={styles.primaryBtn} />
 
         {/* Divider */}
         <View style={styles.divider}>
@@ -128,11 +134,7 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
 
         <SocialButton
           type="guest"
-          onPress={() => {
-            // Guest mode: persist guest flag, then show Main (Home) UI.
-            useAuthStore.getState().setGuest(true);
-            navigateRoot('Main');
-          }}
+          onPress={handleGuestMode}
         />
 
         <View style={styles.footer}>
@@ -158,7 +160,7 @@ const styles = StyleSheet.create({
   screenTitle: {
     fontSize: 24,
     fontWeight: '800',
-    color: '#FFFFFF',
+    color: AuthColors.textPrimary,
     marginBottom: 22,
     letterSpacing: 0.2,
   },
@@ -185,8 +187,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   checkboxChecked: {
-    backgroundColor: '#FFFFFF',
-    borderColor: '#FFFFFF',
+    backgroundColor: AuthColors.checkboxChecked,
+    borderColor: AuthColors.checkboxChecked,
   },
   rememberText: {
     fontSize: 13,
@@ -195,7 +197,7 @@ const styles = StyleSheet.create({
   },
   forgotText: {
     fontSize: 13,
-    color: '#FFFFFF',
+    color: AuthColors.textPrimary,
     fontWeight: '600',
   },
   primaryBtn: {
@@ -230,10 +232,9 @@ const styles = StyleSheet.create({
   },
   footerLink: {
     fontSize: 13,
-    color: '#FFFFFF',
+    color: AuthColors.textPrimary,
     fontWeight: '700',
   },
 });
 
 export default LoginScreen;
-

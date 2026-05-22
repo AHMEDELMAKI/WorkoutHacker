@@ -13,12 +13,13 @@ import { navigateRoot, isNavigationReady } from '../services/navigationService';
 import { speak } from '../services/ttsService';
 import { fullBodyExercises, upperBodyExercises, lowerBodyExercises } from '../features/workout/data/workoutData';
 
-const screenRouteMap: Record<string, { screen: string }> = {
+const screenRouteMap: Record<string, { screen: string; params?: any }> = {
   home: { screen: 'Home' },
   workout: { screen: 'Workout' },
   progress: { screen: 'ProgressStack' },
   profile: { screen: 'ProfileStack' },
-  coach: { screen: 'AICoach' },
+  // AI coach is inside the AICoach stack navigator
+  coach: { screen: 'AICoachStack', params: { screen: 'AICoachMain' } },
 };
 
 const workoutRouteMap: Record<string, { screen: string }> = {
@@ -141,7 +142,10 @@ const GlobalVoiceController: React.FC = () => {
       const screenRoute = resolveVoiceScreen(normalizedCommand);
       if (screenRoute) {
         void speak(`Going to ${screenRoute.screen.toLowerCase()}`);
-        navigateRoot('Main', { screen: screenRoute.screen } as never);
+        navigateRoot('Main', {
+          screen: screenRoute.screen,
+          ...(screenRoute.params ? { params: screenRoute.params } : {}),
+        } as never);
         return;
       }
 

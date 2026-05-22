@@ -17,11 +17,15 @@ import ProfileCard from '../components/ProfileCard';
 import { PPT } from '../components/ProfileTheme';
 import SettingsItem from '../components/SettingsItem';
 
+import { useAuthStore } from '../../../store/authStore';
+
 type Props = NativeStackScreenProps<ProfileStackParamList, 'ProfileHome'>;
 
 const ProfileScreen: React.FC<Props> = ({ navigation }) => {
     const fadeAnim = useRef(new Animated.Value(0)).current;
     const slideAnim = useRef(new Animated.Value(16)).current;
+
+    const logout = useAuthStore(s => s.logout);
 
     useEffect(() => {
         Animated.parallel([
@@ -30,9 +34,14 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
         ]).start();
     }, []);
 
-    // Navigate to auth – walk up two levels (ProfileStack → Main → Auth)
-    const handleLogout = () =>
-        (navigation.getParent()?.getParent() as any)?.replace('Auth');
+    const handleLogout = async () => {
+        try {
+            await logout();
+            // AppNavigator will automatically switch to the Auth stack
+        } catch (error) {
+            console.error('Logout failed:', error);
+        }
+    };
 
     return (
         <View style={styles.root}>

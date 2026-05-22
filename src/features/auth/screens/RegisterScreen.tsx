@@ -9,7 +9,6 @@ import {
   View,
 } from 'react-native';
 import type { AuthStackScreenProps } from '../../../navigation/types';
-import { authApi } from '../../../services/api/auth.api';
 import { validateRegister } from '../../../utils/validation';
 import AuthButton from '../components/AuthButton';
 import { AuthColors } from '../components/AuthColors';
@@ -17,10 +16,7 @@ import AuthContainer from '../components/AuthContainer';
 import AuthHeader from '../components/AuthHeader';
 import AuthInput from '../components/AuthInput';
 import SocialButton from '../components/SocialButton';
-import { navigateRoot } from '../../../services/navigationService';
 import { useAuthStore } from '../../../store/authStore';
-
-
 
 type Props = AuthStackScreenProps<'Register'>;
 
@@ -29,21 +25,27 @@ const RegisterScreen: React.FC<Props> = ({ navigation }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [errors, setErrors] = useState<Record<string, string | undefined>>({});
-  const [loading, setLoading] = useState(false);
+  const [localErrors, setLocalErrors] = useState<Record<string, string | undefined>>({});
+
+  const register = useAuthStore((s) => s.register);
+  const setGuest = useAuthStore((s) => s.setGuest);
+  const isLoading = useAuthStore((s) => s.isLoading);
+  const clearError = useAuthStore((s) => s.clearError);
 
   const emailRef = useRef<TextInput>(null);
   const passwordRef = useRef<TextInput>(null);
   const confirmRef = useRef<TextInput>(null);
 
-  const clearError = (field: string) =>
-    setErrors((prev) => ({ ...prev, [field]: undefined }));
+  const clearLocalError = (field: string) =>
+    setLocalErrors((prev) => ({ ...prev, [field]: undefined }));
 
   const handleRegister = async () => {
     Keyboard.dismiss();
+    clearError();
+
     const validation = validateRegister(name, email, password, confirmPassword);
     if (!validation.isValid) {
-      setErrors({
+      setLocalErrors({
         name: validation.name || undefined,
         email: validation.email || undefined,
         password: validation.password || undefined,
@@ -51,16 +53,19 @@ const RegisterScreen: React.FC<Props> = ({ navigation }) => {
       });
       return;
     }
-    setErrors({});
-    setLoading(true);
+    setLocalErrors({});
+
     try {
-      await authApi.register({ email, password, displayName: name });
+      await register(email, password, name);
       navigation.navigate('OTPVerification', { email });
     } catch (err: any) {
       Alert.alert('Registration Failed', err.message || 'Could not create account. Try again.');
-    } finally {
-      setLoading(false);
     }
+  };
+
+  const handleGuestMode = async () => {
+    await setGuest(true);
+    // AppNavigator swaps the stack automatically
   };
 
   return (
@@ -74,8 +79,8 @@ const RegisterScreen: React.FC<Props> = ({ navigation }) => {
           iconName="person-outline"
           placeholder="Full name"
           value={name}
-          onChangeText={(t) => { setName(t); clearError('name'); }}
-          error={errors.name}
+          onChangeText={(t) => { setName(t); clearLocalError('name'); }}
+          error={localErrors.name}
           autoCapitalize="words"
           returnKeyType="next"
           onSubmitEditing={() => emailRef.current?.focus()}
@@ -85,8 +90,8 @@ const RegisterScreen: React.FC<Props> = ({ navigation }) => {
           iconName="mail-outline"
           placeholder="Email or phone number"
           value={email}
-          onChangeText={(t) => { setEmail(t); clearError('email'); }}
-          error={errors.email}
+          onChangeText={(t) => { setEmail(t); clearLocalError('email'); }}
+          error={localErrors.email}
           autoCapitalize="none"
           keyboardType="email-address"
           returnKeyType="next"
@@ -97,8 +102,8 @@ const RegisterScreen: React.FC<Props> = ({ navigation }) => {
           iconName="lock-closed-outline"
           placeholder="Password"
           value={password}
-          onChangeText={(t) => { setPassword(t); clearError('password'); }}
-          error={errors.password}
+          onChangeText={(t) => { setPassword(t); clearLocalError('password'); }}
+          error={localErrors.password}
           isPassword
           returnKeyType="next"
           onSubmitEditing={() => confirmRef.current?.focus()}
@@ -108,8 +113,8 @@ const RegisterScreen: React.FC<Props> = ({ navigation }) => {
           iconName="lock-closed-outline"
           placeholder="Confirm password"
           value={confirmPassword}
-          onChangeText={(t) => { setConfirmPassword(t); clearError('confirmPassword'); }}
-          error={errors.confirmPassword}
+          onChangeText={(t) => { setConfirmPassword(t); clearLocalError('confirmPassword'); }}
+          error={localErrors.confirmPassword}
           isPassword
           returnKeyType="done"
           onSubmitEditing={handleRegister}
@@ -118,7 +123,7 @@ const RegisterScreen: React.FC<Props> = ({ navigation }) => {
         <AuthButton
           title="Sign Up"
           onPress={handleRegister}
-          loading={loading}
+          loading={isLoading}
           style={styles.primaryBtn}
         />
 
@@ -130,17 +135,8 @@ const RegisterScreen: React.FC<Props> = ({ navigation }) => {
 
         <SocialButton
           type="guest"
-          onPress={() => {
-            // Guest mode: persist guest flag, then show Main (Home) UI.
-            void useAuthStore.getState().setGuest(true);
-            navigateRoot('Main');
-          }}
-
+          onPress={handleGuestMode}
         />
-
-
-
-
 
         <View style={styles.footer}>
           <Text style={styles.footerText}>Already have an account? </Text>
@@ -165,7 +161,7 @@ const styles = StyleSheet.create({
   screenTitle: {
     fontSize: 24,
     fontWeight: '800',
-    color: '#FFFFFF',
+    color: AuthColors.textPrimary,
     marginBottom: 22,
     letterSpacing: 0.2,
   },
@@ -202,7 +198,7 @@ const styles = StyleSheet.create({
   },
   footerLink: {
     fontSize: 13,
-    color: '#FFFFFF',
+    color: AuthColors.textPrimary,
     fontWeight: '700',
   },
 });

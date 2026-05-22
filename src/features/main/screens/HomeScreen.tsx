@@ -195,9 +195,15 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
                             <Text style={styles.welcome}>Welcome, {user?.displayName || 'Champion'} 👋</Text>
                             <Text style={styles.welcomeSub}>Ready for your workout today?</Text>
                         </View>
-                        <View style={styles.avatarCircle}>
-                            <Ionicons name="person" size={20} color={WT.colors.textLight} />
-                        </View>
+                        <TouchableOpacity 
+                            style={styles.avatarCircle}
+                            onPress={() => navigation.navigate('ProfileStack')}
+                            activeOpacity={0.7}
+                            accessibilityRole="button"
+                            accessibilityLabel="Settings"
+                        >
+                            <Ionicons name="settings-outline" size={20} color={WT.colors.textLight} />
+                        </TouchableOpacity>
                     </View>
                 </SafeAreaView>
             </View>
@@ -277,8 +283,15 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
                     </View>
 
                     {/* SECTION 3 — LAST SESSION SUMMARY */}
-                    <View style={styles.card}>
-                        <Text style={styles.sectionTitle}>Last Session</Text>
+                    <TouchableOpacity
+                        style={styles.card}
+                        onPress={() => navigation.navigate('ProgressStack')}
+                        activeOpacity={0.85}
+                    >
+                        <View style={styles.cardHeaderRow}>
+                            <Text style={styles.sectionTitle}>Last Session</Text>
+                            <Ionicons name="chevron-forward" size={16} color={WT.colors.textMuted} />
+                        </View>
                         <View style={styles.sessionRow}>
                             {[
                                 { label: 'Duration', value: '55 min', icon: 'time-outline' as const },
@@ -294,7 +307,7 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
                                 </View>
                             ))}
                         </View>
-                    </View>
+                    </TouchableOpacity>
 
                     {/* SECTION 4 — STREAK CARD */}
                     <View style={styles.streakCard}>
@@ -334,7 +347,12 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
                     {/* Recent activity */}
                     <Text style={styles.recentTitle}>Recent Activity</Text>
                     {RECENT_ACTIVITY.map(activity => (
-                        <View key={activity.id} style={styles.activityCard}>
+                        <TouchableOpacity
+                            key={activity.id}
+                            style={styles.activityCard}
+                            onPress={() => navigation.navigate('ProgressStack')}
+                            activeOpacity={0.7}
+                        >
                             <View style={styles.activityIcon}>
                                 <Text style={styles.activityEmoji}>{activity.icon}</Text>
                             </View>
@@ -345,7 +363,7 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
                                 </Text>
                             </View>
                             <Ionicons name="chevron-forward" size={18} color={WT.colors.textMuted} />
-                        </View>
+                        </TouchableOpacity>
                     ))}
 
                 </Animated.View>
@@ -377,7 +395,7 @@ const styles = StyleSheet.create({
         paddingTop: WT.spacing.md,
     },
     headerLeft: { flex: 1, marginRight: WT.spacing.md },
-    welcome: { fontSize: 22, fontWeight: '800', color: '#FFFFFF', marginBottom: 4 },
+    welcome: { fontSize: 22, fontWeight: '800', color: WT.colors.textLight, marginBottom: 4 },
     welcomeSub: { fontSize: 14, color: 'rgba(255,255,255,0.78)', fontWeight: '500' },
     avatarCircle: {
         width: 42,
@@ -431,7 +449,7 @@ const styles = StyleSheet.create({
         shadowRadius: 10,
         elevation: 6,
     },
-    startBtnText: { fontSize: 15, fontWeight: '800', color: '#FFFFFF' },
+    startBtnText: { fontSize: 15, fontWeight: '800', color: WT.colors.textLight },
     secondaryBtn: {
         marginTop: WT.spacing.sm,
         borderRadius: WT.radius.xl,
@@ -474,12 +492,12 @@ const styles = StyleSheet.create({
     voiceControlBtnText: {
         fontSize: 14,
         fontWeight: '800',
-        color: '#FFFFFF',
+        color: WT.colors.textLight,
     },
     voiceText: {
         marginTop: WT.spacing.sm,
         fontSize: 13,
-        color: '#000000',
+        color: WT.colors.textDark,
         textAlign: 'center',
         fontWeight: '700',
     },
@@ -487,25 +505,25 @@ const styles = StyleSheet.create({
         marginTop: WT.spacing.sm,
         padding: WT.spacing.md,
         borderRadius: WT.radius.md,
-        backgroundColor: '#FFFFFF',
+        backgroundColor: WT.colors.textLight,
         borderWidth: 1,
         borderColor: 'rgba(0,0,0,0.08)',
     },
     voiceDebugLabel: {
         fontSize: 12,
         fontWeight: '700',
-        color: '#000000',
+        color: WT.colors.textDark,
         marginBottom: 6,
     },
     voiceDebugText: {
         fontSize: 12,
-        color: '#1A1A1A',
+        color: WT.colors.textDark,
         marginBottom: 4,
     },
     voiceDebugValue: {
         fontSize: 14,
         fontWeight: '700',
-        color: '#000000',
+        color: WT.colors.textDark,
         marginBottom: 2,
     },
     voiceDebugTime: {
@@ -551,7 +569,7 @@ const styles = StyleSheet.create({
     },
     streakEmoji: { fontSize: 24 },
     streakRight: { flex: 1 },
-    streakTitle: { fontSize: 18, fontWeight: '800', color: '#FFFFFF', marginBottom: 2 },
+    streakTitle: { fontSize: 18, fontWeight: '800', color: WT.colors.textLight, marginBottom: 2 },
     streakSub: { fontSize: 13, color: 'rgba(255,255,255,0.80)', fontWeight: '500' },
     streakBadge: {
         width: 40, height: 40, borderRadius: 20,

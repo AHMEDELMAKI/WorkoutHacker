@@ -110,9 +110,21 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     logout: async () => {
         set({ isLoading: true });
         try {
-            await authApi.logout();
+            // Only call backend logout if we were actually authenticated (not guest)
+            if (!get().isGuest && get().isAuthenticated) {
+                await authApi.logout();
+            }
+        } catch (error) {
+            console.error('API logout failed, clearing local state anyway:', error);
         } finally {
-            set({ user: null, isAuthenticated: false, isLoading: false, error: null });
+            await setGuestMode(false);
+            set({ 
+                user: null, 
+                isAuthenticated: false, 
+                isGuest: false, 
+                isLoading: false, 
+                error: null 
+            });
         }
     },
 

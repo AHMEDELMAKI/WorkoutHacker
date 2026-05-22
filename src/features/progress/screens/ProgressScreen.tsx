@@ -152,7 +152,7 @@ const ctStyles = StyleSheet.create({
         borderRadius: 4,
     },
     cellActive: { backgroundColor: PT.accent },
-    cellInactive: { backgroundColor: '#EDE8F3' },
+    cellInactive: { backgroundColor: PT.bgPrimary + '15' },
 });
 
 // ──────────────────────────────────────────────────────────────────
@@ -302,7 +302,7 @@ const whStyles = StyleSheet.create({
     },
     sep: {
         height: 1,
-        backgroundColor: '#F0EBF7',
+        backgroundColor: PT.bgPrimary + '10',
         marginLeft: 54,
     },
 });
@@ -350,7 +350,7 @@ const abStyles = StyleSheet.create({
     title: {
         fontSize: PT.font.label,
         fontWeight: '800',
-        color: '#FFFFFF',
+        color: PT.cardBg,
         marginBottom: 3,
     },
     sub: {
@@ -452,7 +452,7 @@ const ProgressScreen: React.FC<Props> = ({ navigation }) => {
                             label="Calories"
                             value={String(Math.round(data.totalCalories / 1000)) + 'k'}
                             sub="Burned"
-                            color="#F59E0B"
+                            color={PT.warning}
                         />
                     </View>
 
@@ -562,7 +562,7 @@ const styles = StyleSheet.create({
     emptyTitle: {
         fontSize: 18,
         fontWeight: '800',
-        color: '#FFFFFF',
+        color: PT.cardBg,
         marginTop: 6,
         textAlign: 'center',
     },
@@ -592,7 +592,7 @@ const styles = StyleSheet.create({
 
     // Header card
     headerCard: {
-        backgroundColor: '#FFFFFF',
+        backgroundColor: PT.cardBg,
         borderBottomLeftRadius: 28,
         borderBottomRightRadius: 28,
         paddingHorizontal: S.lg,
