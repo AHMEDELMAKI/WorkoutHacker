@@ -51,9 +51,9 @@ export type ProfileSetupStackParamList = {
 export type MainTabParamList = {
     Home: undefined;
     Workout: { screen?: keyof WorkoutStackParamList; params?: any } | undefined;
-    ProgressStack: undefined;   // wraps Progress + WorkoutSummary
-    AICoachStack: undefined;    // wraps AICoach + WorkoutPlanner
-    ProfileStack: undefined;    // wraps Profile + Privacy + Help + About
+    ProgressStack: undefined;
+    AIPlanner: undefined;
+    ProfileStack: undefined;
 };
 
 // Profile stack (nested under ProfileStack tab)
@@ -75,12 +75,6 @@ export type ProgressStackParamList = {
         muscleFocus: string[];
         suggestions: string[];
     };
-};
-
-// AI Coach stack (nested under AICoach tab)
-export type AICoachStackParamList = {
-    AICoachMain: undefined;
-    WorkoutPlanner: undefined;
 };
 
 // Workout Stack (nested under Workout tab)
@@ -137,9 +131,6 @@ export type ProfileStackScreenProps<T extends keyof ProfileStackParamList> =
 
 export type ProgressStackScreenProps<T extends keyof ProgressStackParamList> =
     NativeStackScreenProps<ProgressStackParamList, T>;
-
-export type AICoachStackScreenProps<T extends keyof AICoachStackParamList> =
-    NativeStackScreenProps<AICoachStackParamList, T>;
 
 export type WorkoutStackScreenProps<T extends keyof WorkoutStackParamList> =
     NativeStackScreenProps<WorkoutStackParamList, T>;

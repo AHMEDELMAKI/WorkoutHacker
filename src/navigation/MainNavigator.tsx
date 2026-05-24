@@ -1,12 +1,12 @@
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import React from 'react';
-import AICoachStackNavigator from './AICoachStackNavigator';
 import HomeScreen from '../features/main/screens/HomeScreen';
 import ProfileStackNavigator from './ProfileStackNavigator';
 import ProgressStackNavigator from './ProgressStackNavigator';
 import WorkoutStackNavigator from './WorkoutStackNavigator';
 import { MainTabParamList } from './types';
+import WorkoutPlannerScreen from '../features/aiCoach/screens/WorkoutPlannerScreen';
 
 const Tab = createBottomTabNavigator<MainTabParamList>();
 
@@ -28,7 +28,7 @@ const TAB_ICONS: Record<
     Home: { focused: 'home', unfocused: 'home-outline' },
     Workout: { focused: 'barbell', unfocused: 'barbell-outline' },
     ProgressStack: { focused: 'stats-chart', unfocused: 'stats-chart-outline' },
-    AICoachStack: { focused: 'sparkles', unfocused: 'sparkles-outline' },
+    AIPlanner: { focused: 'sparkles', unfocused: 'sparkles-outline' },
     ProfileStack: { focused: 'person', unfocused: 'person-outline' },
 };
 
@@ -65,7 +65,7 @@ const MainNavigator = () => (
         <Tab.Screen name="Home" component={HomeScreen} options={{ tabBarLabel: 'Home' }} />
         <Tab.Screen name="Workout" component={WorkoutStackNavigator} options={{ tabBarLabel: 'Workout' }} />
         <Tab.Screen name="ProgressStack" component={ProgressStackNavigator} options={{ tabBarLabel: 'Progress' }} />
-        <Tab.Screen name="AICoachStack" component={AICoachStackNavigator} options={{ tabBarLabel: 'AI Coach' }} />
+        <Tab.Screen name="AIPlanner" component={WorkoutPlannerScreen} options={{ tabBarLabel: 'AI Planner' }} />
         <Tab.Screen name="ProfileStack" component={ProfileStackNavigator} options={{ tabBarLabel: 'Profile' }} />
     </Tab.Navigator>
 );

@@ -9,8 +9,9 @@ sessionRouter.use(authenticate);
 sessionRouter.post(
     '/start',
     [
-        body('workoutType').notEmpty(),
-        body('title').notEmpty().trim(),
+        // NOTE: workoutId is now used instead of workoutType
+        body('workoutId').notEmpty(),
+        body('title').optional().trim(),
     ],
     SessionController.startSession
 );

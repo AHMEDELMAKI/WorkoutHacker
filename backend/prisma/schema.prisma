@@ -136,6 +136,7 @@ model Exercise {
   createdAt       DateTime @default(now())
 
   exerciseSessions ExerciseSession[]
+  customWorkouts   CustomWorkout[] @relation("CustomWorkoutToExercise")
 }
 
 model CustomWorkout {
@@ -143,12 +144,12 @@ model CustomWorkout {
   userId      String
   name        String
   description String?
-  exercises   Json     // Array of {exerciseId, sets, reps, weightKg}
   durationMin Int?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  exercises   Exercise[] @relation("CustomWorkoutToExercise")
 
   @@index([userId])
 }

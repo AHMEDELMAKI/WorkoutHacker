@@ -1,5 +1,6 @@
 import bcrypt from 'bcryptjs';
 import { prisma } from '../lib/prisma';
+import { logger } from '../utils/logger';
 import { signAccessToken, createRefreshToken, rotateRefreshToken, revokeAllUserTokens } from '../utils/jwt';
 import { sendOtpEmail, sendPasswordResetEmail } from '../utils/email';
 
@@ -25,7 +26,14 @@ export class AuthService {
             data: { userId: user.id, code, type: 'EMAIL_VERIFICATION', expiresAt },
         });
 
-        try { await sendOtpEmail(data.email, code); } catch { }
+        // In development, log the OTP to the console. In production, send the email.
+        if (process.env.NODE_ENV === 'development') {
+            logger.info(`DEV-ONLY: OTP for ${data.email} is ${code}`);
+        } else {
+            try { await sendOtpEmail(data.email, code); } catch (err) {
+                logger.error('Failed to send OTP email:', err);
+            }
+        }
 
         const accessToken = signAccessToken({ sub: user.id, email: user.email });
         const refreshToken = await createRefreshToken(user.id);
@@ -68,7 +76,14 @@ export class AuthService {
             await prisma.otpCode.create({
                 data: { userId: user.id, code, type: 'PASSWORD_RESET', expiresAt },
             });
-            try { await sendPasswordResetEmail(email, code); } catch { }
+            // In development, log the OTP to the console.
+            if (process.env.NODE_ENV === 'development') {
+                logger.info(`DEV-ONLY: Password Reset OTP for ${email} is ${code}`);
+            } else {
+                try { await sendPasswordResetEmail(email, code); } catch (err) {
+                    logger.error('Failed to send password reset email:', err);
+                }
+            }
         }
     }
 

@@ -1,0 +1,7 @@
+core/node_modules/
+core/dist/
+core/.env
+core/.env.local
+node_modules/
+release-assets/
+example/node_modules/

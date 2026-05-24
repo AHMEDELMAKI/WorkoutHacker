@@ -1,0 +1,25 @@
+{
+  "name": "react-native-workout-planner",
+  "version": "1.0.0",
+  "description": "TypeScript package for generating highly personalized resistance training plans, designed for two runtime environments:",
+  "main": "index.js",
+  "directories": {
+    "example": "example"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tony-div/react-native-workout-planner.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/tony-div/react-native-workout-planner/issues"
+  },
+  "homepage": "https://github.com/tony-div/react-native-workout-planner#readme",
+  "devDependencies": {}
+}

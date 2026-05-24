@@ -8,6 +8,7 @@ import { authApi, AuthUser } from '../services/api/auth.api';
 import { secureStorage } from '../services/secureStorage';
 import { userApi } from '../services/api/user.api';
 import { getGuestMode, setGuestMode } from '../services/guestMode';
+import { navigationRef } from '../services/navigationService';
 
 interface AuthState {
     user: AuthUser | null;
@@ -23,7 +24,7 @@ interface AuthState {
 
 
     login: (email: string, password: string) => Promise<void>;
-    register: (email: string, password: string, displayName?: string) => Promise<{ email: string }>;
+    register: (email: string, password: string, displayName?: string) => Promise<void>;
     logout: () => Promise<void>;
     refreshUser: () => Promise<void>;
     clearError: () => void;
@@ -96,12 +97,21 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     },
 
     register: async (email, password, displayName) => {
+        console.log('[AuthStore] Attempting to register...');
         set({ isLoading: true, error: null });
         try {
             await authApi.register({ email, password, displayName });
+            console.log('[AuthStore] Registration API call successful.');
             set({ isLoading: false });
-            return { email };
+
+            if (navigationRef.isReady()) {
+                console.log('[AuthStore] Navigating to OTPVerification screen.');
+                navigationRef.navigate('Auth', { screen: 'OTPVerification', params: { email } } as any);
+            } else {
+                console.error('[AuthStore] Navigation not ready, cannot navigate.');
+            }
         } catch (err: any) {
+            console.error('[AuthStore] Registration failed:', err);
             set({ isLoading: false, error: err.message || 'Registration failed' });
             throw err;
         }
@@ -158,4 +168,3 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
     clearError: () => set({ error: null }),
 }));
-

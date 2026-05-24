@@ -14,6 +14,7 @@ import { notificationRouter } from './routes/notification.routes';
 import { workoutPlannerRouter } from './routes/workoutPlanner.routes';
 import { errorHandler } from './middleware/errorHandler';
 import { logger } from './utils/logger';
+import { createWorkoutHandler, createServerConfigFromEnv } from './lib/workout-planner';
 
 const app = express();
 const PORT = parseInt(process.env.PORT || '4000', 10);
@@ -51,6 +52,10 @@ app.use('/api/sessions', sessionRouter);
 app.use('/api/analytics', analyticsRouter);
 app.use('/api/notifications', notificationRouter);
 app.use('/api/workout-planner', workoutPlannerRouter);
+
+// Add the new workout plan generator route
+const workoutPlanConfig = createServerConfigFromEnv(process.env);
+app.post('/api/workout-plan', createWorkoutHandler(workoutPlanConfig));
 
 // ─── Error Handler ──────────────────────────────────────
 app.use(errorHandler);

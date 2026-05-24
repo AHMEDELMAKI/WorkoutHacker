@@ -1,0 +1,52 @@
+{
+  "name": "@react-native-workout-planner",
+  "version": "1.0.1",
+  "description": "Personalized resistance training planner for React Native clients and Node servers",
+  "main": "./dist/server/index.js",
+  "types": "./dist/server/index.d.ts",
+  "exports": {
+    "./client": "./dist/client/index.js",
+    "./server": "./dist/server/index.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "bin": {
+    "workout-planner-init": "./dist/server/cli.js"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "clean": "rimraf dist",
+    "format": "prettier --check .",
+    "format:write": "prettier --write .",
+    "lint": "eslint .",
+    "test": "jest --runInBand"
+  },
+  "keywords": [
+    "react-native",
+    "express",
+    "workout",
+    "training",
+    "gemini"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@babel/runtime": "^7.25.0",
+    "@google/generative-ai": "^0.21.0"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.0",
+    "@types/jest": "^29.5.14",
+    "@types/node": "^22.10.2",
+    "@typescript-eslint/eslint-plugin": "^8.18.2",
+    "@typescript-eslint/parser": "^8.18.2",
+    "eslint": "^8.57.1",
+    "eslint-config-prettier": "^9.1.0",
+    "jest": "^29.7.0",
+    "prettier": "^3.4.2",
+    "rimraf": "^6.0.1",
+    "ts-jest": "^29.2.5",
+    "typescript": "^5.7.2"
+  }
+}

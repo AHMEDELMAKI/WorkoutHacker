@@ -9,12 +9,19 @@ import { Platform } from 'react-native';
 import { secureStorage } from '../secureStorage';
 import { navigationService } from '../navigationService';
 
-// Android emulator uses 10.0.2.2 to reach the host machine's localhost.
-// Change this to your server's LAN IP for physical device testing.
-const BASE_URL =
-    Platform.OS === 'android'
-        ? 'http://10.0.2.2:4000'
-        : 'http://localhost:4000';
+
+// =================================================================
+// IMPORTANT: FOR PHYSICAL DEVICE TESTING
+// =================================================================
+// Replace this with your computer's IP address on your local Wi-Fi network.
+// You can find this by running `ipconfig` (Windows) or `ifconfig` (macOS) in your terminal.
+const DEV_SERVER_IP = '192.168.1.4'; // <--- REPLACE THIS WITH YOUR ACTUAL IP
+// =================================================================
+
+
+// Use the IP address for development, but you would use a real domain in production.
+const BASE_URL = `http://${DEV_SERVER_IP}:4000`;
+
 
 // ─── Types ───────────────────────────────────────────────
 

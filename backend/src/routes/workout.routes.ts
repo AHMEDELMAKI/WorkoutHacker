@@ -1,92 +1,96 @@
-import { Router, Request, Response } from 'express';
+import { Router, Response } from 'express';
 import { body, validationResult } from 'express-validator';
 import { prisma } from '../lib/prisma';
 import { authenticate, AuthRequest } from '../middleware/authenticate';
 
 export const workoutRouter = Router();
-workoutRouter.use(authenticate);
 
-// ─── GET /api/workouts/exercises ────────────────────────
-workoutRouter.get('/exercises', async (_req: Request, res: Response): Promise<void> => {
-    const exercises = await prisma.exercise.findMany({
-        orderBy: { name: 'asc' },
+// Get all built-in workouts - NOTE: This is now empty as JSON files were removed.
+// This should be implemented to pull from a database of exercises/templates.
+workoutRouter.get('/', async (req, res) => {
+    res.json({
+        fullBody: [],
+        upper: [],
+        lower: [],
     });
-    res.json(exercises);
 });
 
-// ─── GET /api/workouts/custom ────────────────────────────
-workoutRouter.get('/custom', async (req: AuthRequest, res: Response): Promise<void> => {
+// Get user's custom workouts
+workoutRouter.get('/custom', authenticate, async (req: AuthRequest, res) => {
     const workouts = await prisma.customWorkout.findMany({
         where: { userId: req.user!.sub },
-        orderBy: { createdAt: 'desc' },
+        include: { exercises: true },
     });
     res.json(workouts);
 });
 
-// ─── POST /api/workouts/custom ───────────────────────────
+// Create a custom workout
 workoutRouter.post(
     '/custom',
+    authenticate,
     [
-        body('name').notEmpty().trim().isLength({ max: 100 }),
-        body('description').optional().trim().isLength({ max: 500 }),
-        body('exercises').isArray({ min: 1 }),
-        body('durationMin').optional().isInt({ min: 1 }),
+        body('name').notEmpty().withMessage('Workout name is required'),
+        body('exercises').isArray({ min: 1 }).withMessage('At least one exercise is required'),
     ],
-    async (req: AuthRequest, res: Response): Promise<void> => {
+    async (req: AuthRequest, res: Response) => {
         const errors = validationResult(req);
         if (!errors.isEmpty()) {
-            res.status(400).json({ errors: errors.array() });
-            return;
+            return res.status(400).json({ errors: errors.array() });
         }
 
-        const { name, description, exercises, durationMin } = req.body;
+        const { name, exercises } = req.body;
         const workout = await prisma.customWorkout.create({
             data: {
-                userId: req.user!.sub,
                 name,
-                description: description || null,
-                exercises,
-                durationMin: durationMin || null,
+                userId: req.user!.sub,
+                exercises: {
+                    connect: exercises.map((id: string) => ({ id })),
+                },
             },
+            include: { exercises: true },
         });
         res.status(201).json(workout);
-    },
+    }
 );
 
-// ─── PUT /api/workouts/custom/:id ────────────────────────
-workoutRouter.put('/custom/:id', async (req: AuthRequest, res: Response): Promise<void> => {
-    const { id } = req.params;
-    const existing = await prisma.customWorkout.findFirst({
-        where: { id, userId: req.user!.sub },
-    });
-    if (!existing) {
-        res.status(404).json({ error: 'Workout not found' });
-        return;
+// Update a custom workout
+workoutRouter.put('/custom/:id', authenticate, async (req: AuthRequest, res: Response) => {
+    const { id: paramId } = req.params;
+    if (typeof paramId !== 'string') {
+        return res.status(400).json({ error: 'Invalid workout ID.' });
     }
+    const id = paramId;
 
-    const { name, description, exercises, durationMin } = req.body;
-    const updated = await prisma.customWorkout.update({
-        where: { id },
+    const { name, exercises } = req.body;
+    const workout = await prisma.customWorkout.update({
+        where: { id, userId: req.user!.sub },
         data: {
-            ...(name && { name }),
-            ...(description !== undefined && { description }),
-            ...(exercises && { exercises }),
-            ...(durationMin !== undefined && { durationMin }),
+            name,
+            exercises: {
+                set: exercises.map((id: string) => ({ id })),
+            },
         },
+        include: { exercises: true },
     });
-    res.json(updated);
+    res.json(workout);
 });
 
-// ─── DELETE /api/workouts/custom/:id ─────────────────────
-workoutRouter.delete('/custom/:id', async (req: AuthRequest, res: Response): Promise<void> => {
-    const { id } = req.params;
-    const existing = await prisma.customWorkout.findFirst({
+// Delete a custom workout
+workoutRouter.delete('/custom/:id', authenticate, async (req: AuthRequest, res: Response) => {
+    const { id: paramId } = req.params;
+    if (typeof paramId !== 'string') {
+        return res.status(400).json({ error: 'Invalid workout ID.' });
+    }
+    const id = paramId;
+
+    // First check if user owns workout
+    const workout = await prisma.customWorkout.findFirst({
         where: { id, userId: req.user!.sub },
     });
-    if (!existing) {
-        res.status(404).json({ error: 'Workout not found' });
-        return;
+    if (!workout) {
+        return res.status(404).json({ error: 'Workout not found or you do not have permission' });
     }
+
     await prisma.customWorkout.delete({ where: { id } });
-    res.json({ ok: true });
+    res.status(204).send();
 });
