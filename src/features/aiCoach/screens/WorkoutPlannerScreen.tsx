@@ -26,7 +26,7 @@ type PlanGoal = WorkoutPlan['primaryGoal'];
 type GenderOption = 'not_specified' | 'male' | 'female';
 
 const API_BASE_URL = 'https://gymhacker.onrender.com';
-const API_ENDPOINT = '/workout';
+const API_ENDPOINT = '/api/workout';
 let logRoutingInstalled = false;
 
 function WorkoutPlannerScreen() {
