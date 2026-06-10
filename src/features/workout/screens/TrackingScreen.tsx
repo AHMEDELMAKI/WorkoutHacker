@@ -69,8 +69,12 @@ const TrackingScreen: React.FC<Props> = ({ route, navigation }) => {
 
   // On mount: start workout session
   useEffect(() => {
-    startWorkout(exercise.targetMuscles[0] || 'GENERAL', exercise.name);
-    startPulse();
+    const initWorkout = async () => {
+      await startWorkout(exercise.targetMuscles[0] || 'GENERAL', exercise.name);
+      startPulse();
+    };
+    initWorkout();
+
     const timer = setInterval(() => {
       if (!isPaused) tick();
     }, 1000);
@@ -86,7 +90,7 @@ const TrackingScreen: React.FC<Props> = ({ route, navigation }) => {
     const unsubscribe = subscribeVoiceAction((action) => {
       if (action === 'end_workout') {
         void speak('Ending workout');
-        endWorkout();
+        void endWorkout();
       }
       if (action === 'start_workout' && isPaused) {
         void speak('Resuming workout');
@@ -109,11 +113,16 @@ const TrackingScreen: React.FC<Props> = ({ route, navigation }) => {
 
   const endWorkout = async () => {
     const { formScore, fatigueLevel } = useAiStore.getState();
-    await completeWorkout({
-      formScore,
-      fatigue: fatigueLevel,
-    });
-    navigation.navigate('WorkoutComplete', { workoutType: exercise.targetMuscles });
+    try {
+      await completeWorkout({
+        formScore,
+        fatigue: fatigueLevel,
+      });
+      navigation.navigate('WorkoutComplete', { workoutType: exercise.targetMuscles });
+    } catch (error) {
+      console.error('[TrackingScreen] Failed to complete workout:', error);
+      Alert.alert('Error', 'Failed to save workout session. Please try again.');
+    }
   };
 
   const toggleCamera = async () => {
