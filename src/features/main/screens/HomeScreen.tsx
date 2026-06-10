@@ -32,6 +32,9 @@ import { RECENT_ACTIVITY, TODAYS_WORKOUT } from '../../home/data/homeData';
 
 type Props = BottomTabScreenProps<MainTabParamList, 'Home'>;
 
+import { analyticsApi, AnalyticsSummary } from '../../../services/api/analytics.api';
+import { sessionApi, WorkoutSession } from '../../../services/api/session.api';
+
 const HomeScreen: React.FC<Props> = ({ navigation }) => {
     const user = useAuthStore(s => s.user);
     const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -39,6 +42,11 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
     const [voiceStatus, setVoiceStatus] = useState('Voice control is inactive.');
     const [lastVoiceText, setLastVoiceText] = useState('None yet');
     const [lastVoiceTime, setLastVoiceTime] = useState('');
+
+    // Live Data State
+    const [summary, setSummary] = useState<AnalyticsSummary | null>(null);
+    const [recentSessions, setRecentSessions] = useState<WorkoutSession[]>([]);
+    const [loading, setLoading] = useState(true);
 
     const openFatigueCheck = () => {
         navigation.getParent()?.navigate('FatigueCheck' as never);
@@ -50,7 +58,24 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
             duration: 400,
             useNativeDriver: true,
         }).start();
+        fetchLiveData();
     }, []);
+
+    const fetchLiveData = async () => {
+        try {
+            setLoading(true);
+            const [sum, sess] = await Promise.all([
+                analyticsApi.getSummary(),
+                sessionApi.getSessions(),
+            ]);
+            setSummary(sum);
+            setRecentSessions(sess.sessions || []);
+        } catch (error) {
+            console.error('[HomeScreen] Failed to fetch live data:', error);
+        } finally {
+            setLoading(false);
+        }
+    };
 
     useEffect(() => {
         // Create exercise action mapping
@@ -283,31 +308,33 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
                     </View>
 
                     {/* SECTION 3 — LAST SESSION SUMMARY */}
-                    <TouchableOpacity
-                        style={styles.card}
-                        onPress={() => navigation.navigate('ProgressStack')}
-                        activeOpacity={0.85}
-                    >
-                        <View style={styles.cardHeaderRow}>
-                            <Text style={styles.sectionTitle}>Last Session</Text>
-                            <Ionicons name="chevron-forward" size={16} color={WT.colors.textMuted} />
-                        </View>
-                        <View style={styles.sessionRow}>
-                            {[
-                                { label: 'Duration', value: '55 min', icon: 'time-outline' as const },
-                                { label: 'Exercises', value: '8', icon: 'repeat-outline' as const },
-                                { label: 'Form Score', value: '91%', icon: 'star-outline' as const },
-                            ].map(item => (
-                                <View key={item.label} style={styles.sessionItem}>
-                                    <View style={styles.sessionIconCircle}>
-                                        <Ionicons name={item.icon} size={16} color={WT.colors.primary} />
+                    {recentSessions.length > 0 && (
+                        <TouchableOpacity
+                            style={styles.card}
+                            onPress={() => navigation.navigate('ProgressStack')}
+                            activeOpacity={0.85}
+                        >
+                            <View style={styles.cardHeaderRow}>
+                                <Text style={styles.sectionTitle}>Last Session</Text>
+                                <Ionicons name="chevron-forward" size={16} color={WT.colors.textMuted} />
+                            </View>
+                            <View style={styles.sessionRow}>
+                                {[
+                                    { label: 'Duration', value: `${recentSessions[0].durationMin || 0} min`, icon: 'time-outline' as const },
+                                    { label: 'Type', value: recentSessions[0].workoutType.split(' ')[0], icon: 'repeat-outline' as const },
+                                    { label: 'Form Score', value: `${recentSessions[0].formScore || 0}%`, icon: 'star-outline' as const },
+                                ].map(item => (
+                                    <View key={item.label} style={styles.sessionItem}>
+                                        <View style={styles.sessionIconCircle}>
+                                            <Ionicons name={item.icon} size={16} color={WT.colors.primary} />
+                                        </View>
+                                        <Text style={styles.sessionValue}>{item.value}</Text>
+                                        <Text style={styles.sessionLabel}>{item.label}</Text>
                                     </View>
-                                    <Text style={styles.sessionValue}>{item.value}</Text>
-                                    <Text style={styles.sessionLabel}>{item.label}</Text>
-                                </View>
-                            ))}
-                        </View>
-                    </TouchableOpacity>
+                                ))}
+                            </View>
+                        </TouchableOpacity>
+                    )}
 
                     {/* SECTION 4 — STREAK CARD */}
                     <View style={styles.streakCard}>
@@ -315,8 +342,12 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
                             <Text style={styles.streakEmoji}>🔥</Text>
                         </View>
                         <View style={styles.streakRight}>
-                            <Text style={styles.streakTitle}>7 Day Streak!</Text>
-                            <Text style={styles.streakSub}>Keep it up! You're on fire!</Text>
+                            <Text style={styles.streakTitle}>{summary?.currentStreak || 0} Day Streak!</Text>
+                            <Text style={styles.streakSub}>
+                                {summary?.currentStreak && summary.currentStreak > 0 
+                                    ? "Keep it up! You're on fire!" 
+                                    : "Start your first workout today!"}
+                            </Text>
                         </View>
                         <View style={styles.streakBadge}>
                             <Text style={styles.streakBadgeText}>🏆</Text>
@@ -325,46 +356,52 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
 
                     {/* SECTION 5 — QUICK STATUS */}
                     <View style={styles.card}>
-                        <Text style={styles.sectionTitle}>This Week</Text>
+                        <Text style={styles.sectionTitle}>All Time</Text>
                         <View style={styles.statusGrid}>
                             <View style={styles.statusItem}>
-                                <Text style={styles.statusValue}>4</Text>
+                                <Text style={styles.statusValue}>{summary?.totalWorkouts || 0}</Text>
                                 <Text style={styles.statusLabel}>Workouts</Text>
                             </View>
                             <View style={styles.statusDivider} />
                             <View style={styles.statusItem}>
-                                <Text style={styles.statusValue}>87%</Text>
+                                <Text style={styles.statusValue}>{Math.round(summary?.avgFormScore || 0)}%</Text>
                                 <Text style={styles.statusLabel}>Avg Form</Text>
                             </View>
                             <View style={styles.statusDivider} />
                             <View style={styles.statusItem}>
-                                <Text style={[styles.statusValue, { color: WT.colors.success }]}>Low</Text>
-                                <Text style={styles.statusLabel}>Fatigue</Text>
+                                <Text style={[styles.statusValue, { color: WT.colors.success }]}>
+                                    {Math.round((summary?.totalCaloriesBurned || 0) / 1000)}k
+                                </Text>
+                                <Text style={styles.statusLabel}>kCal Burned</Text>
                             </View>
                         </View>
                     </View>
 
                     {/* Recent activity */}
-                    <Text style={styles.recentTitle}>Recent Activity</Text>
-                    {RECENT_ACTIVITY.map(activity => (
-                        <TouchableOpacity
-                            key={activity.id}
-                            style={styles.activityCard}
-                            onPress={() => navigation.navigate('ProgressStack')}
-                            activeOpacity={0.7}
-                        >
-                            <View style={styles.activityIcon}>
-                                <Text style={styles.activityEmoji}>{activity.icon}</Text>
-                            </View>
-                            <View style={styles.activityInfo}>
-                                <Text style={styles.activityName}>{activity.title}</Text>
-                                <Text style={styles.activitySub}>
-                                    {activity.date} · {activity.duration} min · {activity.calories} kcal
-                                </Text>
-                            </View>
-                            <Ionicons name="chevron-forward" size={18} color={WT.colors.textMuted} />
-                        </TouchableOpacity>
-                    ))}
+                    {recentSessions.length > 0 && (
+                        <>
+                            <Text style={styles.recentTitle}>Recent Activity</Text>
+                            {recentSessions.slice(0, 5).map(activity => (
+                                <TouchableOpacity
+                                    key={activity.id}
+                                    style={styles.activityCard}
+                                    onPress={() => navigation.navigate('ProgressStack')}
+                                    activeOpacity={0.7}
+                                >
+                                    <View style={styles.activityIcon}>
+                                        <Text style={styles.activityEmoji}>💪</Text>
+                                    </View>
+                                    <View style={styles.activityInfo}>
+                                        <Text style={styles.activityName}>{activity.title || activity.workoutType}</Text>
+                                        <Text style={styles.activitySub}>
+                                            {new Date(activity.startedAt).toLocaleDateString()} · {activity.durationMin || 0} min · {activity.caloriesBurned || 0} kcal
+                                        </Text>
+                                    </View>
+                                    <Ionicons name="chevron-forward" size={18} color={WT.colors.textMuted} />
+                                </TouchableOpacity>
+                            ))}
+                        </>
+                    )}
 
                 </Animated.View>
             </ScrollView>

@@ -41,42 +41,28 @@ const TrackingScreen: React.FC<Props> = ({ route, navigation }) => {
   const elapsedSeconds = useWorkoutStore(s => s.elapsedSeconds);
   const caloriesBurned = useWorkoutStore(s => s.caloriesBurned);
 
-  // AI Store reset
+  // AI Store access
   const resetAi = useAiStore(s => s.reset);
+  const landmarks = useAiStore(s => s.landmarks);
+  const ghostSkeleton = useAiStore(s => s.guideOverlay);
+  const deviationScore = useAiStore(s => s.deviationScore);
+  const detectedExercise = useAiStore(s => s.detectedExercise);
 
   const [isPaused, setIsPaused] = useState(false);
   const [cameraEnabled, setCameraEnabled] = useState(false);
+  const [isCalibrating, setIsCalibrating] = useState(true);
   const pulseAnim = useRef(new Animated.Value(1)).current;
-
-  const ghostGuideKey = (() => {
-    const name = (exercise?.name ?? '').toLowerCase();
-
-    // Mirrors GhostGuideTestScreen exercise labels loosely.
-    if (name.includes('bicep')) return 'bicep_curl';
-    if (name.includes('tricep')) return 'triceps_extension';
-    if (name.includes('shoulder press') || (name.includes('shoulder') && name.includes('press'))) return 'shoulder_press';
-    if (name.includes('front raise') || (name.includes('front') && name.includes('raise'))) return 'front_raise';
-    if (name.includes('lateral raise') || (name.includes('lateral') && name.includes('raise'))) return 'lateral_raise';
-
-    // If your exercise names don't match yet, extend these heuristics.
-    return null as null | 'bicep_curl' | 'shoulder_press' | 'front_raise' | 'lateral_raise' | 'triceps_extension';
-  })();
 
   // AI Pipeline Hook
   const { frameProcessor } = useAiPipeline();
   const device = useCameraDevice('front');
   const { hasPermission, requestPermission } = useCameraPermission();
 
-  // On mount: start workout session
+  // On mount: prepare session
   useEffect(() => {
-    const initWorkout = async () => {
-      await startWorkout(exercise.targetMuscles[0] || 'GENERAL', exercise.name);
-      startPulse();
-    };
-    initWorkout();
-
+    startPulse();
     const timer = setInterval(() => {
-      if (!isPaused) tick();
+      if (!isPaused && !isCalibrating) tick();
     }, 1000);
 
     return () => {
@@ -84,6 +70,19 @@ const TrackingScreen: React.FC<Props> = ({ route, navigation }) => {
       resetAi();
     };
   }, [exercise]);
+
+  // Handle Calibration -> Start
+  useEffect(() => {
+    if (isCalibrating && cameraEnabled && landmarks && deviationScore < 0.15) {
+      // User is aligned, start workout
+      const startSession = async () => {
+        setIsCalibrating(false);
+        await startWorkout(exercise.targetMuscles[0] || 'GENERAL', exercise.name);
+        void speak('Calibration complete. Starting workout.');
+      };
+      startSession();
+    }
+  }, [landmarks, deviationScore, isCalibrating, cameraEnabled]);
 
   // Handle voice actions
   useEffect(() => {
@@ -160,12 +159,44 @@ const TrackingScreen: React.FC<Props> = ({ route, navigation }) => {
                   isActive={!isPaused}
                   frameProcessor={frameProcessor}
                 />
+                
+                {/* Calibration Overlay */}
+                {isCalibrating && (
+                  <View style={styles.calibrationOverlay}>
+                    <Ionicons name="scan-outline" size={80} color={deviationScore < 0.2 ? '#69C36D' : '#FFF'} />
+                    <Text style={styles.calibrationText}>
+                      {deviationScore < 0.2 ? 'Hold position...' : 'Align your body with the camera'}
+                    </Text>
+                  </View>
+                )}
+
+                {/* Ghost Skeleton Overlay */}
+                {ghostSkeleton && !isPaused && (
+                  <View style={styles.ghostContainer} pointerEvents="none">
+                    <Svg width="100%" height="100%" viewBox="0 0 1 1">
+                      {ghostSkeleton.map((p, i) => {
+                        if (!p || (p as any).visibility < 0.5) return null;
+                        return (
+                          <Circle
+                            key={i}
+                            cx={(p as any).x}
+                            cy={(p as any).y}
+                            r="0.015"
+                            fill="rgba(255, 255, 255, 0.4)"
+                          />
+                        );
+                      })}
+                    </Svg>
+                  </View>
+                )}
+
                 <View style={styles.metricsOverlay} pointerEvents="none">
                   <OverlayMetric label="Reps" selector={s => s.reps} />
                   <OverlayMetric label="Form" selector={s => s.formScore} suffix="%" />
                   <OverlayMetric label="Fatigue" selector={s => s.fatigueLevel} />
-                  <OverlayMetric label="Cal" selector={s => Math.round(useWorkoutStore.getState().caloriesBurned)} />
+                  <OverlayMetric label="Type" selector={s => (s.detectedExercise || 'Detecting...').replace('_', ' ')} />
                 </View>
+
                 <TouchableOpacity
                   style={styles.floatingCameraButton}
                   onPress={toggleCamera}
@@ -343,6 +374,26 @@ const styles = StyleSheet.create({
   metricLabel: { fontSize: 14, color: WT.colors.textMuted },
   metricValue: { fontSize: 14, fontWeight: '700' },
   btnRow: { flexDirection: 'row', gap: WT.spacing.md, alignItems: 'center' },
+
+  calibrationOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 20,
+    zIndex: 10,
+  },
+  calibrationText: {
+    color: '#FFF',
+    fontSize: 18,
+    fontWeight: '800',
+    textAlign: 'center',
+    paddingHorizontal: 40,
+  },
+  ghostContainer: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 5,
+  },
 
   ghostTempoRow: {
     flexDirection: 'row',

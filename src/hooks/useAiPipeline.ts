@@ -9,13 +9,26 @@ import { useEffect, useRef, useCallback } from 'react';
 import { Worklets } from 'react-native-worklets-core';
 import { useAiStore } from '../store/aiStore';
 import { useWorkoutStore } from '../store/workoutStore';
-import { GhostGuideCore } from '../lib/ghostGuide';
-// import { sessionApi } from '../services/api/session.api';
 import { PoseLandmarks } from 'react-native-pose-landmarks';
+import { exerciseRecognition } from 'react-native-exercise-recognition';
+import { createRepCounter } from 'react-native-rep-counter';
+import { tempoClassifier } from 'react-native-tempo-classifier';
+import { GhostGuideCore } from 'react-native-ghost-guide';
 
-// Secondary AI logic can be imported here
-// import { RepCounter } from 'react-native-rep-counter';
-// import { FormAnalyzer } from '../lib/formAnalysis';
+// Ghost Guide reference frames
+import bicepCurlFrames from '../assets/ghost-guide/bicep_curl_frames.json';
+import shoulderPressFrames from '../assets/ghost-guide/shoulder_press_frames.json';
+import frontRaiseFrames from '../assets/ghost-guide/front_raise_frames.json';
+import lateralRaiseFrames from '../assets/ghost-guide/lateral_raise_frames.json';
+import tricepsExtensionFrames from '../assets/ghost-guide/triceps_extension_frames.json';
+
+const GHOST_REFS = {
+    bicep_curl: bicepCurlFrames,
+    shoulder_press: shoulderPressFrames,
+    front_raise: frontRaiseFrames,
+    lateral_raise: lateralRaiseFrames,
+    triceps_extension: tricepsExtensionFrames,
+};
 
 export const useAiPipeline = () => {
     const setLandmarks = useAiStore((s) => s.setLandmarks);
@@ -23,6 +36,26 @@ export const useAiPipeline = () => {
     const setGuideOverlay = useAiStore((s) => s.setGuideOverlay);
     const currentWorkout = useWorkoutStore((s) => s.currentWorkout);
     const currentExercise = useWorkoutStore((s) => s.currentExercise);
+
+    const repCounterRef = useRef<any>(null);
+    const hasLoadedModel = useRef(false);
+
+    // Initialization
+    useEffect(() => {
+        if (!hasLoadedModel.current) {
+            exerciseRecognition.loadModelFromAsset('exercise_classifier_rf.json');
+            tempoClassifier.loadModelFromAsset('tempo_classifier.json');
+            hasLoadedModel.current = true;
+        }
+        repCounterRef.current = createRepCounter();
+        repCounterRef.current.startSession({ exercise: null });
+
+        return () => {
+            if (repCounterRef.current) {
+                repCounterRef.current.stopSession();
+            }
+        };
+    }, []);
 
     // Worklet-safe setter to update the JS-side store from the Frame Processor thread
     const updateStoreJS = Worklets.createRunOnJS((landmarks: any[], inference: any, ghostData?: any) => {
@@ -32,8 +65,6 @@ export const useAiPipeline = () => {
     });
 
     const lastUpdate = useRef(0);
-    const metricBuffer = useRef<any[]>([]);
-    const lastSync = useRef(Date.now());
 
     const frameProcessor = useCallback((frame: any) => {
         'worklet';
@@ -44,6 +75,7 @@ export const useAiPipeline = () => {
         const buffer = PoseLandmarks.getLandmarksBuffer();
         if (!buffer || buffer.length === 0) return;
 
+        // 1. Parse Landmarks
         const landmarks = [];
         for (let i = 0; i < 33; i++) {
             landmarks.push({
@@ -54,42 +86,79 @@ export const useAiPipeline = () => {
             });
         }
 
+        // 2. Exercise Recognition
+        exerciseRecognition.ingestLandmarksBuffer(buffer);
+        const exercise = exerciseRecognition.getCurrentExercise() ?? null;
+        const exConfidence = exerciseRecognition.getCurrentConfidence();
+
+        // 3. Rep Counting & Phase
+        let reps = 0;
+        let phase = 'UNKNOWN';
+        if (repCounterRef.current) {
+            const state = repCounterRef.current.update(buffer, exercise);
+            reps = state.reps;
+            phase = state.phase;
+        }
+
+        // 4. Tempo & Quality
+        let tempo = 'unknown';
+        let quality = 0;
+        if (phase === 'UP' || phase === 'DOWN') {
+            tempoClassifier.update(phase, 30);
+            tempo = tempoClassifier.getCurrentTempo();
+            quality = tempoClassifier.getCurrentQuality();
+        }
+        if (exercise != null) {
+            tempoClassifier.setExercise(exercise);
+        }
+
+        // 5. Ghost Guide & Form Score
+        let deviation = 0;
+        let ghostSkeleton = null;
+        let formScore = 100;
+
+        // Identify which ghost reference to use
+        let ghostKey: keyof typeof GHOST_REFS | null = null;
+        if (exercise) {
+            if (exercise.includes('bicep')) ghostKey = 'bicep_curl';
+            else if (exercise.includes('shoulder_press')) ghostKey = 'shoulder_press';
+            else if (exercise.includes('front_raise')) ghostKey = 'front_raise';
+            else if (exercise.includes('lateral_raise')) ghostKey = 'lateral_raise';
+            else if (exercise.includes('triceps')) ghostKey = 'triceps_extension';
+        }
+
+        if (ghostKey && GHOST_REFS[ghostKey]) {
+            const res = GhostGuideCore.processLandmarksBufferWithReference(
+                buffer,
+                GHOST_REFS[ghostKey],
+                { applyReferencePose: true }
+            );
+            if (res) {
+                deviation = res.deviationScore;
+                ghostSkeleton = res.ghostSkeleton;
+                // Map deviation (0-1 typically) to form score (0-100)
+                // Lower deviation = higher form score
+                formScore = Math.max(0, Math.min(100, 100 - (deviation * 150)));
+            }
+        }
+
+        // 6. Fatigue Level Heuristic (Based on Tempo Quality)
+        let fatigue: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL' = 'LOW';
+        if (quality < 30) fatigue = 'CRITICAL';
+        else if (quality < 50) fatigue = 'HIGH';
+        else if (quality < 75) fatigue = 'MEDIUM';
+
         const inference = {
-            reps: 0,
-            formScore: 95,
-            fatigue: 'LOW',
+            reps,
+            formScore,
+            fatigue,
+            tempo,
+            exercise,
             timestampMs: now,
         };
 
-        // Buffer the metric for batch sync
-        metricBuffer.current.push(inference);
-
-        updateStoreJS(landmarks, inference, null);
+        updateStoreJS(landmarks, inference, ghostSkeleton ? { skeleton: ghostSkeleton.points, deviation } : null);
     }, [updateStoreJS]);
-
-    // Background sync loop for buffered metrics
-    /*
-    NOTE: The AI metrics API is not included in the Swagger specification.
-    This code is commented out to avoid breaking the application.
-    useEffect(() => {
-        PoseLandmarks.initPoseLandmarker();
-
-        const syncInterval = setInterval(() => {
-            if (metricBuffer.current.length > 0 && currentWorkout) {
-                const batch = [...metricBuffer.current];
-                metricBuffer.current = [];
-                // sessionApi.logAiMetricsBatch(currentWorkout.id, batch).catch(e => {
-                //     console.warn('[AI Pipeline] Batch sync failed:', e.message);
-                // });
-            }
-        }, 10000); // Sync every 10 seconds
-
-        return () => {
-            PoseLandmarks.closePoseLandmarker();
-            clearInterval(syncInterval);
-        };
-    }, [currentWorkout]);
-    */
 
     return { frameProcessor };
 };
