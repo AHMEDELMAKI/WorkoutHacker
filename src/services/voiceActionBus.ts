@@ -10,6 +10,7 @@ export type VoiceAction =
   | 'open_lower_body_workout'
   | 'open_custom_workout'
   | 'start_workout'
+  | 'pause_workout'
   | 'end_workout'
   | 'do_burpees'
   | 'do_jump_squats'

@@ -23,6 +23,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { Svg, Circle } from 'react-native-svg';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import type { WorkoutStackParamList } from '../../../navigation/types';
 import { WT } from '../../../theme/workoutTheme';
@@ -93,6 +94,10 @@ const TrackingScreen: React.FC<Props> = ({ route, navigation }) => {
       }
       if (action === 'start_workout' && isPaused) {
         void speak('Resuming workout');
+        togglePause();
+      }
+      if (action === 'pause_workout' && !isPaused) {
+        void speak('Pausing workout');
         togglePause();
       }
     });
@@ -192,9 +197,18 @@ const TrackingScreen: React.FC<Props> = ({ route, navigation }) => {
 
                 <View style={styles.metricsOverlay} pointerEvents="none">
                   <OverlayMetric label="Reps" selector={s => s.reps} />
+                  <OverlayMetric label="Tempo" selector={s => s.tempo || 'Analyzing...'} />
                   <OverlayMetric label="Form" selector={s => s.formScore} suffix="%" />
                   <OverlayMetric label="Fatigue" selector={s => s.fatigueLevel} />
                   <OverlayMetric label="Type" selector={s => (s.detectedExercise || 'Detecting...').replace('_', ' ')} />
+                </View>
+
+                {/* Prominent Overlay HUDs */}
+                <View style={styles.tempoHud} pointerEvents="none">
+                  <TempoOverlay />
+                </View>
+                <View style={styles.repOverlay} pointerEvents="none">
+                  <RepOverlay />
                 </View>
 
                 <TouchableOpacity
@@ -458,6 +472,62 @@ const styles = StyleSheet.create({
     left: 16,
     width: 140,
   },
+  tempoHud: {
+    position: 'absolute',
+    top: 16,
+    right: 16,
+    alignItems: 'flex-end',
+  },
+  tempoOverlayContent: {
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 12,
+    alignItems: 'center',
+    minWidth: 80,
+  },
+  tempoOverlayValue: {
+    fontSize: 16,
+    fontWeight: '900',
+    color: '#FFF',
+    marginBottom: 4,
+  },
+  tempoQualityBar: {
+    width: '100%',
+    height: 3,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    borderRadius: 2,
+    overflow: 'hidden',
+  },
+  tempoQualityFill: {
+    height: '100%',
+  },
+  repOverlay: {
+    position: 'absolute',
+    bottom: 60,
+    left: 16,
+  },
+  repOverlayContent: {
+    backgroundColor: 'rgba(107, 63, 160, 0.7)',
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: 'rgba(255,255,255,0.3)',
+  },
+  repOverlayValue: {
+    fontSize: 24,
+    fontWeight: '900',
+    color: '#FFF',
+  },
+  repOverlayLabel: {
+    fontSize: 8,
+    fontWeight: '800',
+    color: 'rgba(255,255,255,0.8)',
+    marginTop: -2,
+  },
   overlayCard: {
     backgroundColor: 'rgba(0,0,0,0.5)',
     paddingHorizontal: 12,
@@ -514,26 +584,43 @@ const OverlayMetric: React.FC<{ label: string; selector: (s: any) => any; suffix
   );
 });
 
-const RepDisplay = React.memo(() => {
+const RepOverlay = React.memo(() => {
   const reps = useAiStore(s => s.reps);
-  return <Text style={styles.repCount}>{reps}</Text>;
+  return (
+    <View style={styles.repOverlayContent}>
+      <Text style={styles.repOverlayValue}>{reps}</Text>
+      <Text style={styles.repOverlayLabel}>REPS</Text>
+    </View>
+  );
 });
 
-const MotivationDisplay = React.memo(() => {
-  const motivation = useAiStore(s => (s as any).motivation);
-  return <Text style={styles.motivation}>{motivation || 'Keep Pushing'}</Text>;
+const TempoOverlay = React.memo(() => {
+  const tempo = useAiStore(s => s.tempo);
+  const quality = useAiStore(s => s.tempoQuality);
+
+  if (!tempo || tempo === 'unknown') return null;
+
+  return (
+    <View style={styles.tempoOverlayContent}>
+      <Text style={styles.tempoOverlayValue}>{tempo.toUpperCase()}</Text>
+      <View style={styles.tempoQualityBar}>
+        <View style={[styles.tempoQualityFill, { width: `${quality}%`, backgroundColor: quality > 70 ? '#69C36D' : '#FFD700' }]} />
+      </View>
+    </View>
+  );
 });
 
 const LiveAnalysis = React.memo(() => {
   const formScore = useAiStore(s => s.formScore);
   const tempo = useAiStore(s => s.tempo);
+  const tempoQuality = useAiStore(s => s.tempoQuality);
   const caloriesBurned = useWorkoutStore(s => s.caloriesBurned);
 
   return (
     <>
       {[
         { label: 'Form Score', value: `${formScore}%`, color: formScore > 80 ? WT.colors.success : WT.colors.warning },
-        { label: 'Tempo', value: tempo || 'Analyzing...', color: WT.colors.primary },
+        { label: 'Tempo', value: tempo ? `${tempo} (${tempoQuality}%)` : 'Analyzing...', color: WT.colors.primary },
         { label: 'Burned', value: `${Math.round(caloriesBurned)} kcal`, color: WT.colors.danger },
       ].map(metric => (
         <View key={metric.label} style={styles.metricRow}>

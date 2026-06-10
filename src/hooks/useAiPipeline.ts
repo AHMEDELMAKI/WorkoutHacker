@@ -153,6 +153,7 @@ export const useAiPipeline = () => {
             formScore,
             fatigue,
             tempo,
+            tempoQuality: quality,
             exercise,
             timestampMs: now,
         };

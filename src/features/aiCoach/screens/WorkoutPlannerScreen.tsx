@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   LogBox,
@@ -12,6 +12,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import Clipboard from '@react-native-clipboard/clipboard';
 import { WT } from '../../../theme/workoutTheme';
 import { generatePlan } from '../../../lib/workout-planner';
@@ -68,24 +69,28 @@ function WorkoutPlannerScreen() {
 
   useEffect(() => {
     installMetroLogRouting();
-    loadUserProfile();
   }, []);
 
-  const loadUserProfile = async () => {
+  const loadUserProfile = useCallback(async () => {
     try {
+      console.log('[WorkoutPlannerScreen] Pre-filling user profile data...');
       const profile = await userApi.getProfile();
       if (profile) {
         if (profile.workoutDaysPerWeek) setDaysPerWeek(profile.workoutDaysPerWeek.toString());
-        if (profile.heightCm) setHeight(profile.heightCm.toString());
-        if (profile.weightKg) setBodyWeight(profile.weightKg.toString());
-        if (profile.ageYears) setAge(profile.ageYears.toString());
+        if (profile.height) setHeight(profile.height.toString());
+        if (profile.weight) setBodyWeight(profile.weight.toString());
+        if (profile.age) setAge(profile.age.toString());
         
         if (profile.gender === 'male' || profile.gender === 'female') {
           setGenderOption(profile.gender as GenderOption);
         }
 
-        if (profile.fitnessLevel === 'beginner' || profile.fitnessLevel === 'intermediate' || profile.fitnessLevel === 'advanced') {
-          setTrainingLevel(profile.fitnessLevel as Level);
+        if (profile.fitnessLevel) {
+          if (profile.fitnessLevel === 'athlete') {
+            setTrainingLevel('advanced');
+          } else if (['beginner', 'intermediate', 'advanced'].includes(profile.fitnessLevel)) {
+            setTrainingLevel(profile.fitnessLevel as Level);
+          }
         }
 
         // Set primary goal if it matches one of our options
@@ -108,7 +113,13 @@ function WorkoutPlannerScreen() {
     } catch (err) {
       console.warn('[WorkoutPlannerScreen] Failed to pre-fill profile data:', err);
     }
-  };
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadUserProfile();
+    }, [loadUserProfile])
+  );
 
   const requestPreview = useMemo(() => {
     const preview: Record<string, unknown> = {

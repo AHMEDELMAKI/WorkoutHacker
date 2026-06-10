@@ -18,6 +18,7 @@ interface AiState {
     formScore: number;
     fatigueLevel: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
     tempo: string | null;
+    tempoQuality: number;
     isProcessing: boolean;
 
     // Ghost Guide state
@@ -31,6 +32,7 @@ interface AiState {
         formScore?: number;
         fatigue?: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
         tempo?: string;
+        tempoQuality?: number;
         exercise?: string;
     }) => void;
     setGuideOverlay: (overlay: string | null, deviation?: number) => void;
@@ -45,6 +47,7 @@ export const useAiStore = create<AiState>((set) => ({
     formScore: 100,
     fatigueLevel: 'LOW',
     tempo: null,
+    tempoQuality: 0,
     isProcessing: false,
     guideOverlay: null,
     deviationScore: 0,
@@ -56,6 +59,7 @@ export const useAiStore = create<AiState>((set) => ({
         formScore: data.formScore ?? state.formScore,
         fatigueLevel: data.fatigue ?? state.fatigueLevel,
         tempo: data.tempo ?? state.tempo,
+        tempoQuality: data.tempoQuality ?? state.tempoQuality,
         detectedExercise: data.exercise ?? state.detectedExercise,
     })),
 
@@ -73,6 +77,7 @@ export const useAiStore = create<AiState>((set) => ({
         formScore: 100,
         fatigueLevel: 'LOW',
         tempo: null,
+        tempoQuality: 0,
         isProcessing: false,
         guideOverlay: null,
         deviationScore: 0,

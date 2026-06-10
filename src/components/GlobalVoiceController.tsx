@@ -168,13 +168,28 @@ const GlobalVoiceController: React.FC = () => {
         return;
       }
 
-      if (normalizedCommand.includes('start workout') || normalizedCommand.includes('press start workout') || normalizedCommand.includes('begin workout')) {
-        void speak('Starting workout');
-        emitVoiceAction('home_start_workout');
+      if (normalizedCommand.includes('start workout') || 
+          normalizedCommand.includes('press start workout') || 
+          normalizedCommand.includes('begin workout') ||
+          normalizedCommand.includes('resume') ||
+          normalizedCommand.includes('continue')) {
+        void speak(normalizedCommand.includes('resume') || normalizedCommand.includes('continue') ? 'Resuming workout' : 'Starting workout');
+        emitVoiceAction('start_workout');
         return;
       }
 
-      if (normalizedCommand.includes('end workout') || normalizedCommand.includes('finish workout') || normalizedCommand.includes('stop workout')) {
+      if (normalizedCommand.includes('pause workout') || 
+          normalizedCommand.includes('pause') || 
+          normalizedCommand.includes('wait') ||
+          normalizedCommand.includes('hold on')) {
+        void speak('Pausing workout');
+        emitVoiceAction('pause_workout');
+        return;
+      }
+
+      if (normalizedCommand.includes('end workout') || 
+          normalizedCommand.includes('finish workout') || 
+          normalizedCommand.includes('stop workout')) {
         void speak('Ending workout');
         emitVoiceAction('end_workout');
         return;
