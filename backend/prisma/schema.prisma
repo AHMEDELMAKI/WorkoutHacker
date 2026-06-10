@@ -74,6 +74,8 @@ enum OtpType {
 model Profile {
   id            String        @id @default(uuid())
   userId        String        @unique
+  firstName     String?
+  lastName      String?
   displayName   String?
   avatarUrl     String?
   gender        Gender?
@@ -84,6 +86,12 @@ model Profile {
   fitnessGoals  String[]      @default([])
   units         UnitSystem    @default(METRIC)
   onboardingDone Boolean     @default(false)
+  
+  // Workout Preferences
+  workoutPrimaryGoal  String?   // e.g., "hypertrophy", "strength", "endurance"
+  workoutTrainingLevel String?  // e.g., "beginner", "intermediate", "advanced"
+  workoutDaysPerWeek  Int?      // e.g., 3, 4, 5
+  
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
 

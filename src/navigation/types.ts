@@ -23,9 +23,7 @@ export type AuthStackParamList = {
     Login: undefined;
     Register: undefined;
     ForgotPassword: undefined;
-    OTPVerification: { email: string };
     ResetPassword: { token: string };
-    Success: undefined;
 };
 
 // Onboarding Stack
@@ -47,12 +45,18 @@ export type ProfileSetupStackParamList = {
     SetupComplete: undefined;
 };
 
+// AI Coach Stack
+export type AICoachStackParamList = {
+    AICoachHome: undefined;
+    WorkoutPlanner: undefined;
+};
+
 // Main Tab Stack
 export type MainTabParamList = {
     Home: undefined;
     Workout: { screen?: keyof WorkoutStackParamList; params?: any } | undefined;
     ProgressStack: undefined;
-    AIPlanner: undefined;
+    AIPlanner: NavigatorScreenParams<AICoachStackParamList> | undefined;
     ProfileStack: undefined;
 };
 

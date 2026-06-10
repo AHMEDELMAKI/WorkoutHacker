@@ -5,22 +5,18 @@
  * - Automatically refreshes tokens on 401 and retries
  * - Dispatches logout on unrecoverable auth failure
  */
-import { Platform } from 'react-native';
 import { secureStorage } from '../secureStorage';
-import { navigationService } from '../navigationService';
+import { navigateRoot } from '../navigationService';
 
 
 // =================================================================
 // IMPORTANT: FOR PHYSICAL DEVICE TESTING
 // =================================================================
 // Replace this with your computer's IP address on your local Wi-Fi network.
-// You can find this by running `ipconfig` (Windows) or `ifconfig` (macOS) in your terminal.
-const DEV_SERVER_IP = '192.168.1.4'; // <--- REPLACE THIS WITH YOUR ACTUAL IP
-// =================================================================
+// Use the production Render backend exclusively.
+const BASE_URL = 'https://gymhacker.onrender.com';
 
-
-// Use the IP address for development, but you would use a real domain in production.
-const BASE_URL = `http://${DEV_SERVER_IP}:4000`;
+console.log('[ApiClient] Initialized with BASE_URL:', BASE_URL);
 
 
 // ─── Types ───────────────────────────────────────────────
@@ -35,6 +31,16 @@ export interface ApiError {
 
 let isRefreshing = false;
 let failedQueue: Array<{ resolve: (token: string) => void; reject: (e: unknown) => void }> = [];
+
+const PUBLIC_AUTH_PATHS = [
+    '/auth/login',
+    '/auth/register',
+    '/auth/forgot-password',
+    '/auth/reset-password',
+];
+
+const isPublicAuthPath = (path: string) =>
+    PUBLIC_AUTH_PATHS.some((publicPath) => path.startsWith(publicPath));
 
 function processQueue(error: unknown, token: string | null) {
     failedQueue.forEach(({ resolve, reject }) => {
@@ -72,11 +78,11 @@ async function apiFetch<T>(
     }
 
     // ── Handle 401 with token refresh ──────────────────────
-    if (response.status === 401 && retry) {
+    if (response.status === 401 && retry && !isPublicAuthPath(path)) {
         if (isRefreshing) {
             return new Promise<T>((resolve, reject) => {
                 failedQueue.push({
-                    resolve: async (newToken) => {
+                    resolve: async (_newToken) => {
                         try {
                             resolve(await apiFetch<T>(path, options, false));
                         } catch (e) {
@@ -94,12 +100,12 @@ async function apiFetch<T>(
         if (!refreshToken) {
             isRefreshing = false;
             await secureStorage.clearTokens();
-            navigationService.navigate('Auth');
+            navigateRoot('Auth');
             throw buildError('Session expired. Please log in again.', 401);
         }
 
         try {
-            const refreshResponse = await fetch(`${BASE_URL}/api/auth/refresh`, {
+            const refreshResponse = await fetch(`${BASE_URL}/auth/refresh`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ refreshToken }),
@@ -109,14 +115,15 @@ async function apiFetch<T>(
                 throw new Error('Refresh failed');
             }
 
-            const data = await refreshResponse.json() as { accessToken: string; refreshToken: string };
+            const refreshBody = await refreshResponse.json() as { data: { accessToken: string; refreshToken: string } };
+            const data = refreshBody.data;
             await secureStorage.setTokens(data.accessToken, data.refreshToken);
             processQueue(null, data.accessToken);
             return apiFetch<T>(path, options, false);
         } catch (err) {
             processQueue(err, null);
             await secureStorage.clearTokens();
-            navigationService.navigate('Auth');
+            navigateRoot('Auth');
             throw buildError('Session expired. Please log in again.', 401);
         } finally {
             isRefreshing = false;

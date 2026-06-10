@@ -9,10 +9,22 @@ const SERVICE_ACCESS = 'wh_access_token';
 const SERVICE_REFRESH = 'wh_refresh_token';
 
 export const secureStorage = {
-    async setTokens(accessToken: string, refreshToken: string): Promise<void> {
+    async setTokens(accessToken: string, refreshToken: string = ''): Promise<void> {
+        console.log('--- secureStorage.setTokens ---');
+        console.log('accessToken:', accessToken ? `${accessToken.substring(0, 20)}...` : 'NULL/UNDEFINED');
+        console.log('refreshToken:', refreshToken ? `${refreshToken.substring(0, 20)}...` : 'EMPTY/NONE');
+        console.log('-----------------------------');
+        
+        if (!accessToken) {
+            throw new Error('Cannot store tokens: accessToken is null or undefined');
+        }
+        
+        // Access token is required, refresh token is optional
         await Promise.all([
             Keychain.setGenericPassword('access', accessToken, { service: SERVICE_ACCESS }),
-            Keychain.setGenericPassword('refresh', refreshToken, { service: SERVICE_REFRESH }),
+            refreshToken 
+                ? Keychain.setGenericPassword('refresh', refreshToken, { service: SERVICE_REFRESH })
+                : Keychain.resetGenericPassword({ service: SERVICE_REFRESH }), // Clear refresh token if empty
         ]);
     },
 

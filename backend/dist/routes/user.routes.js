@@ -9,18 +9,23 @@ exports.userRouter = (0, express_1.Router)();
 exports.userRouter.use(authenticate_1.authenticate);
 // ─── GET /api/users/me ───────────────────────────────────
 exports.userRouter.get('/me', user_controller_1.UserController.getMe);
+exports.userRouter.get('/:userId/profile', user_controller_1.UserController.getProfile);
+exports.userRouter.get('/:userId/onboarding', user_controller_1.UserController.getOnboardingStatus);
 // ─── PUT /api/users/profile ──────────────────────────────
 exports.userRouter.put('/profile', [
     (0, express_validator_1.body)('displayName').optional().trim().isLength({ max: 64 }),
-    (0, express_validator_1.body)('gender').optional().isIn(['MALE', 'FEMALE', 'NON_BINARY', 'PREFER_NOT_TO_SAY']),
+    (0, express_validator_1.body)('gender').optional().isIn(['male', 'female', 'other', 'MALE', 'FEMALE', 'NON_BINARY', 'PREFER_NOT_TO_SAY']),
     (0, express_validator_1.body)('ageYears').optional().isInt({ min: 10, max: 120 }),
     (0, express_validator_1.body)('heightCm').optional().isFloat({ min: 50, max: 300 }),
     (0, express_validator_1.body)('weightKg').optional().isFloat({ min: 20, max: 500 }),
-    (0, express_validator_1.body)('fitnessLevel').optional().isIn(['BEGINNER', 'INTERMEDIATE', 'ADVANCED']),
+    (0, express_validator_1.body)('fitnessLevel').optional().isIn(['beginner', 'intermediate', 'advanced', 'athlete', 'BEGINNER', 'INTERMEDIATE', 'ADVANCED']),
     (0, express_validator_1.body)('fitnessGoals').optional().isArray(),
     (0, express_validator_1.body)('units').optional().isIn(['METRIC', 'IMPERIAL']),
     (0, express_validator_1.body)('onboardingDone').optional().isBoolean(),
 ], user_controller_1.UserController.updateProfile);
+exports.userRouter.patch('/:userId/profile', user_controller_1.UserController.updateProfile);
+exports.userRouter.post('/:userId/onboarding/done', user_controller_1.UserController.markOnboardingDone);
 // ─── PUT /api/users/privacy ──────────────────────────────
 exports.userRouter.put('/privacy', user_controller_1.UserController.updatePrivacy);
+exports.userRouter.patch('/:userId/settings', user_controller_1.UserController.updatePrivacy);
 //# sourceMappingURL=user.routes.js.map

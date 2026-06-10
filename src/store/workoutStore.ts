@@ -5,27 +5,19 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { sessionApi, WorkoutSession } from '../services/api/session.api';
-
-interface ExerciseState {
-    id: string;
-    name: string;
-    reps: number;
-    sets: number;
-    active: boolean;
-}
+import { workoutApi, Workout, Exercise } from '../services/api/session.api'; // a.k.a. workout.api.ts
 
 interface WorkoutState {
-    currentSession: WorkoutSession | null;
+    currentWorkout: Omit<Workout, 'sessionId' | 'date'> | null;
     isActive: boolean;
-    currentExercise: ExerciseState | null;
+    currentExercise: Exercise | null;
     elapsedSeconds: number;
     caloriesBurned: number;
 
     // Actions
-    startWorkout: (type: string, title: string) => Promise<void>;
-    completeWorkout: (summary: { formScore?: number; fatigue?: string; notes?: string }) => Promise<void>;
-    startExercise: (name: string) => Promise<void>;
+    startWorkout: (type: 'cardio' | 'strength', title: string) => void;
+    completeWorkout: (summary: { notes?: string }) => Promise<void>;
+    startExercise: (name: string) => void;
     updateLiveMetrics: (reps: number, calories: number) => void;
     tick: () => void;
     reset: () => void;
@@ -34,16 +26,23 @@ interface WorkoutState {
 export const useWorkoutStore = create<WorkoutState>()(
     persist(
         (set, get) => ({
-            currentSession: null,
+            currentWorkout: null,
             isActive: false,
             currentExercise: null,
             elapsedSeconds: 0,
             caloriesBurned: 0,
 
-            startWorkout: async (type, title) => {
-                const session = await sessionApi.startSession(type, title);
+            startWorkout: (type, title) => {
                 set({
-                    currentSession: session,
+                    currentWorkout: {
+                        title,
+                        sessionType: type,
+                        workoutInfo: {
+                            duration: 0,
+                            caloriesBurned: 0,
+                            exercises: [],
+                        },
+                    },
                     isActive: true,
                     elapsedSeconds: 0,
                     caloriesBurned: 0,
@@ -51,18 +50,13 @@ export const useWorkoutStore = create<WorkoutState>()(
                 });
             },
 
-            startExercise: async (name) => {
-                const session = get().currentSession;
-                if (!session) return;
-
-                const result = await sessionApi.startExerciseSession(session.id, { exerciseName: name });
+            startExercise: (name) => {
                 set({
                     currentExercise: {
-                        id: result.id,
                         name,
                         reps: 0,
                         sets: 1,
-                        active: true,
+                        weight: 0, // default weight
                     },
                 });
             },
@@ -83,20 +77,27 @@ export const useWorkoutStore = create<WorkoutState>()(
             },
 
             completeWorkout: async (summary) => {
-                const session = get().currentSession;
-                if (!session) return;
+                const workout = get().currentWorkout;
+                if (!workout) return;
 
-                await sessionApi.completeSession(session.id, {
-                    durationMin: Math.floor(get().elapsedSeconds / 60),
-                    caloriesBurned: get().caloriesBurned,
-                    ...summary,
-                });
+                const finalWorkout: Omit<Workout, 'sessionId' | 'date'> = {
+                    ...workout,
+                    workoutInfo: {
+                        ...workout.workoutInfo,
+                        duration: Math.floor(get().elapsedSeconds / 60),
+                        caloriesBurned: get().caloriesBurned,
+                        // TODO: exercises should be accumulated during the session
+                    },
+                    // TODO: notes are not in the new Workout interface
+                };
 
-                set({ isActive: false, currentSession: null, currentExercise: null });
+                await workoutApi.createWorkout(finalWorkout);
+
+                set({ isActive: false, currentWorkout: null, currentExercise: null });
             },
 
             reset: () => set({
-                currentSession: null,
+                currentWorkout: null,
                 isActive: false,
                 currentExercise: null,
                 elapsedSeconds: 0,

@@ -10,6 +10,8 @@ authRouter.post(
     [
         body('email').isEmail().normalizeEmail(),
         body('password').isLength({ min: 6 }),
+        body('firstName').optional().trim(),
+        body('lastName').optional().trim(),
         body('displayName').optional().trim(),
     ],
     AuthController.register

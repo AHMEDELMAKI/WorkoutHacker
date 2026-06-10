@@ -8,6 +8,7 @@ import {
   View,
 } from 'react-native';
 import type { AuthStackScreenProps } from '../../../navigation/types';
+import { authApi } from '../../../services/api/auth.api';
 import AuthButton from '../components/AuthButton';
 import { AuthColors } from '../components/AuthColors';
 import AuthContainer from '../components/AuthContainer';
@@ -15,33 +16,29 @@ import AuthHeader from '../components/AuthHeader';
 import AuthInput from '../components/AuthInput';
 
 type Props = AuthStackScreenProps<'ForgotPassword'>;
-type Mode = 'email' | 'phone';
 
 const ForgotPasswordScreen: React.FC<Props> = ({ navigation }) => {
-  const [mode, setMode] = useState<Mode>('email');
-  const [value, setValue] = useState('');
+  const [email, setEmail] = useState('');
   const [error, setError] = useState<string | undefined>();
   const [loading, setLoading] = useState(false);
-  const isEmail = mode === 'email';
+  const [sent, setSent] = useState(false);
 
-  const handleSend = () => {
-    if (!value.trim()) {
-      setError(isEmail ? 'Please enter your email address' : 'Please enter your phone number');
+  const handleSend = async () => {
+    if (!email.trim()) {
+      setError('Please enter your email address');
       return;
     }
     setError(undefined);
     Keyboard.dismiss();
     setLoading(true);
-    setTimeout(() => {
+    try {
+      await authApi.forgotPassword(email);
+      setSent(true);
+    } catch (err: any) {
+      setError(err.message || 'An error occurred');
+    } finally {
       setLoading(false);
-      navigation.navigate('OTPVerification', { email: value });
-    }, 1500);
-  };
-
-  const toggleMode = () => {
-    setValue('');
-    setError(undefined);
-    setMode((m) => (m === 'email' ? 'phone' : 'email'));
+    }
   };
 
   return (
@@ -65,42 +62,36 @@ const ForgotPasswordScreen: React.FC<Props> = ({ navigation }) => {
             <Ionicons name="lock-closed" size={42} color="#FFFFFF" />
           </View>
 
-          <Text style={styles.title}>Forgot Password?</Text>
+          <Text style={styles.title}>{sent ? 'Check Your Email' : 'Forgot Password?'}</Text>
           <Text style={styles.subtitle}>
-            {isEmail
-              ? 'Enter your email and we will send\na verification code to reset your password.'
-              : 'Enter your phone number and we will send\na verification code to reset your password.'}
+            {sent
+              ? `We have sent a password reset link to ${email}.`
+              : 'Enter your email and we will send a link to reset your password.'}
           </Text>
 
-          <AuthInput
-            iconName={isEmail ? 'mail-outline' : 'call-outline'}
-            placeholder={isEmail ? 'Email address' : 'Phone number'}
-            value={value}
-            onChangeText={(t) => { setValue(t); setError(undefined); }}
-            error={error}
-            keyboardType={isEmail ? 'email-address' : 'phone-pad'}
-            autoCapitalize="none"
-            containerStyle={styles.inputFull}
-            returnKeyType="done"
-            onSubmitEditing={handleSend}
-          />
+          {!sent && (
+            <>
+              <AuthInput
+                iconName="mail-outline"
+                placeholder="Email address"
+                value={email}
+                onChangeText={(t) => { setEmail(t); setError(undefined); }}
+                error={error}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                containerStyle={styles.inputFull}
+                returnKeyType="done"
+                onSubmitEditing={handleSend}
+              />
 
-          <TouchableOpacity
-            onPress={toggleMode}
-            style={styles.toggleBtn}
-            accessibilityRole="button"
-          >
-            <Text style={styles.toggleText}>
-              {isEmail ? 'Use Phone Number Instead' : 'Use Email Instead'}
-            </Text>
-          </TouchableOpacity>
-
-          <AuthButton
-            title="Send Code  →"
-            onPress={handleSend}
-            loading={loading}
-            style={styles.sendBtn}
-          />
+              <AuthButton
+                title="Send Link"
+                onPress={handleSend}
+                loading={loading}
+                style={styles.sendBtn}
+              />
+            </>
+          )}
         </View>
       </View>
     </AuthContainer>

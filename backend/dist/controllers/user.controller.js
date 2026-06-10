@@ -13,10 +13,37 @@ class UserController {
             return (0, response_1.sendError)(res, err.message);
         }
     }
+    static async getProfile(req, res) {
+        try {
+            const profile = await user_service_1.UserService.getProfile(req.user.sub);
+            return (0, response_1.sendSuccess)(res, profile);
+        }
+        catch (err) {
+            return (0, response_1.sendError)(res, err.message);
+        }
+    }
     static async updateProfile(req, res) {
         try {
             const profile = await user_service_1.UserService.updateProfile(req.user.sub, req.body);
             return (0, response_1.sendSuccess)(res, profile, 'Profile updated');
+        }
+        catch (err) {
+            return (0, response_1.sendError)(res, err.message);
+        }
+    }
+    static async getOnboardingStatus(req, res) {
+        try {
+            const profile = await user_service_1.UserService.getProfile(req.user.sub);
+            return (0, response_1.sendSuccess)(res, { onboardingDone: profile.onboardingDone });
+        }
+        catch (err) {
+            return (0, response_1.sendError)(res, err.message);
+        }
+    }
+    static async markOnboardingDone(req, res) {
+        try {
+            const profile = await user_service_1.UserService.updateProfile(req.user.sub, { onboardingDone: true });
+            return (0, response_1.sendSuccess)(res, profile, 'Onboarding completed');
         }
         catch (err) {
             return (0, response_1.sendError)(res, err.message);

@@ -14,7 +14,13 @@ export class AuthController {
             return sendCreated(res, {
                 accessToken: data.accessToken,
                 refreshToken: data.refreshToken,
-                user: { id: data.user.id, email: data.user.email, emailVerified: data.user.emailVerified }
+                user: { 
+                    id: data.user.id, 
+                    email: data.user.email, 
+                    emailVerified: data.user.emailVerified,
+                    firstName: data.user.profile?.firstName,
+                    lastName: data.user.profile?.lastName,
+                }
             }, 'Account created successfully');
         } catch (err: any) {
             const status = err.message === 'Email already in use' ? 409 : 500;
@@ -36,12 +42,16 @@ export class AuthController {
                     id: data.user.id,
                     email: data.user.email,
                     emailVerified: data.user.emailVerified,
-                    displayName: data.user.profile?.displayName,
+                    firstName: data.user.profile?.firstName,
+                    lastName: data.user.profile?.lastName,
                     onboardingDone: data.user.profile?.onboardingDone,
                 }
             }, 'Login successful');
         } catch (err: any) {
-            const status = err.message === 'Invalid credentials' ? 401 : 500;
+            let status = 401;
+            if (err.message === 'User not found') {
+                status = 404;
+            }
             return sendError(res, err.message, status);
         }
     }

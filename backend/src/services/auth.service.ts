@@ -5,16 +5,50 @@ import { signAccessToken, createRefreshToken, rotateRefreshToken, revokeAllUserT
 import { sendOtpEmail, sendPasswordResetEmail } from '../utils/email';
 
 export class AuthService {
-    static async register(data: { email: string; password: string; displayName?: string }) {
+    static async register(data: { 
+        email: string; 
+        password: string; 
+        firstName?: string; 
+        lastName?: string;
+        age?: number;
+        ageYears?: number;
+        height?: number;
+        heightCm?: number;
+        weight?: number;
+        weightKg?: number;
+        gender?: string;
+    }) {
         const existing = await prisma.user.findUnique({ where: { email: data.email } });
         if (existing) throw new Error('Email already in use');
 
         const passwordHash = await bcrypt.hash(data.password, 12);
+        
+        // Normalize gender
+        let normalizedGender: any = data.gender;
+        if (data.gender) {
+            const g = data.gender.toUpperCase();
+            if (g === 'MALE' || g === 'FEMALE' || g === 'NON_BINARY' || g === 'PREFER_NOT_TO_SAY') {
+                normalizedGender = g;
+            } else if (g === 'OTHER') {
+                normalizedGender = 'NON_BINARY';
+            }
+        }
+
         const user = await prisma.user.create({
             data: {
                 email: data.email,
                 passwordHash,
-                profile: { create: { displayName: data.displayName || null } },
+                profile: { 
+                    create: { 
+                        firstName: data.firstName || null,
+                        lastName: data.lastName || null,
+                        displayName: data.firstName && data.lastName ? `${data.firstName} ${data.lastName}` : (data.firstName || null),
+                        ageYears: data.ageYears || data.age || null,
+                        heightCm: data.heightCm || data.height || null,
+                        weightKg: data.weightKg || data.weight || null,
+                        gender: normalizedGender || null,
+                    } 
+                },
                 privacySettings: { create: {} },
                 analytics: { create: {} },
             },
@@ -46,8 +80,12 @@ export class AuthService {
             include: { profile: true },
         });
 
-        if (!user || !(await bcrypt.compare(password, user.passwordHash))) {
-            throw new Error('Invalid credentials');
+        if (!user) {
+            throw new Error('User not found');
+        }
+
+        if (!(await bcrypt.compare(password, user.passwordHash))) {
+            throw new Error('Invalid password');
         }
 
         const accessToken = signAccessToken({ sub: user.id, email: user.email });

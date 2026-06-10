@@ -21,7 +21,8 @@ import { useAuthStore } from '../../../store/authStore';
 type Props = AuthStackScreenProps<'Register'>;
 
 const RegisterScreen: React.FC<Props> = ({ navigation }) => {
-  const [name, setName] = useState('');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -32,6 +33,7 @@ const RegisterScreen: React.FC<Props> = ({ navigation }) => {
   const isLoading = useAuthStore((s) => s.isLoading);
   const clearError = useAuthStore((s) => s.clearError);
 
+  const lastNameRef = useRef<TextInput>(null);
   const emailRef = useRef<TextInput>(null);
   const passwordRef = useRef<TextInput>(null);
   const confirmRef = useRef<TextInput>(null);
@@ -43,10 +45,11 @@ const RegisterScreen: React.FC<Props> = ({ navigation }) => {
     Keyboard.dismiss();
     clearError();
 
-    const validation = validateRegister(name, email, password, confirmPassword);
+    const validation = validateRegister(firstName, lastName, email, password, confirmPassword);
     if (!validation.isValid) {
       setLocalErrors({
-        name: validation.name || undefined,
+        firstName: validation.firstName || undefined,
+        lastName: validation.lastName || undefined,
         email: validation.email || undefined,
         password: validation.password || undefined,
         confirmPassword: validation.confirmPassword || undefined,
@@ -56,7 +59,7 @@ const RegisterScreen: React.FC<Props> = ({ navigation }) => {
     setLocalErrors({});
 
     try {
-      await register(email, password, name);
+      await register(email, password, firstName, lastName);
       navigation.navigate('OTPVerification', { email });
     } catch (err: any) {
       Alert.alert('Registration Failed', err.message || 'Could not create account. Try again.');
@@ -75,25 +78,45 @@ const RegisterScreen: React.FC<Props> = ({ navigation }) => {
       <View style={styles.body}>
         <Text style={styles.screenTitle}>Create Account</Text>
 
-        <AuthInput
-          iconName="person-outline"
-          placeholder="Full name"
-          value={name}
-          onChangeText={(t) => { setName(t); clearLocalError('name'); }}
-          error={localErrors.name}
-          autoCapitalize="words"
-          returnKeyType="next"
-          onSubmitEditing={() => emailRef.current?.focus()}
-          blurOnSubmit={false}
-        />
+        <View style={styles.row}>
+          <View style={{ flex: 1, marginRight: 8 }}>
+            <AuthInput
+              iconName="person-outline"
+              placeholder="First name"
+              value={firstName}
+              onChangeText={(t) => { setFirstName(t); clearLocalError('firstName'); }}
+              error={localErrors.firstName}
+              autoCapitalize="words"
+              returnKeyType="next"
+              onSubmitEditing={() => lastNameRef.current?.focus()}
+              blurOnSubmit={false}
+            />
+          </View>
+          <View style={{ flex: 1 }}>
+            <AuthInput
+              iconName="person-outline"
+              placeholder="Last name"
+              value={lastName}
+              onChangeText={(t) => { setLastName(t); clearLocalError('lastName'); }}
+              error={localErrors.lastName}
+              autoCapitalize="words"
+              returnKeyType="next"
+              ref={lastNameRef}
+              onSubmitEditing={() => emailRef.current?.focus()}
+              blurOnSubmit={false}
+            />
+          </View>
+        </View>
+
         <AuthInput
           iconName="mail-outline"
-          placeholder="Email or phone number"
+          placeholder="Email address"
           value={email}
           onChangeText={(t) => { setEmail(t); clearLocalError('email'); }}
           error={localErrors.email}
           autoCapitalize="none"
           keyboardType="email-address"
+          ref={emailRef}
           returnKeyType="next"
           onSubmitEditing={() => passwordRef.current?.focus()}
           blurOnSubmit={false}
@@ -164,6 +187,10 @@ const styles = StyleSheet.create({
     color: AuthColors.textPrimary,
     marginBottom: 22,
     letterSpacing: 0.2,
+  },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
   },
   primaryBtn: {
     marginTop: 6,

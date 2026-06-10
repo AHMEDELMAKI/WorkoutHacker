@@ -13,6 +13,7 @@ import AuthButton from '../components/AuthButton';
 import { AuthColors } from '../components/AuthColors';
 import AuthContainer from '../components/AuthContainer';
 import AuthHeader from '../components/AuthHeader';
+import { authApi } from '../../../services/api/auth.api';
 import AuthInput from '../components/AuthInput';
 
 type Props = AuthStackScreenProps<'ResetPassword'>;
@@ -26,7 +27,7 @@ const ResetPasswordScreen: React.FC<Props> = ({ navigation, route }) => {
 
     const confirmRef = useRef<TextInput>(null);
 
-    const handleReset = () => {
+    const handleReset = async () => {
         const newErrors: typeof errors = {};
         if (!password || password.length < 8) {
             newErrors.password = 'Password must be at least 8 characters';
@@ -41,10 +42,14 @@ const ResetPasswordScreen: React.FC<Props> = ({ navigation, route }) => {
         setErrors({});
         Keyboard.dismiss();
         setLoading(true);
-        setTimeout(() => {
+        try {
+            await authApi.resetPassword(token, password);
             setLoading(false);
-            navigation.navigate('Success');
-        }, 1500);
+            navigation.navigate('Login');
+        } catch (err: any) {
+            setErrors({ confirm: err.message || 'An error occurred' });
+            setLoading(false);
+        }
     };
 
     return (

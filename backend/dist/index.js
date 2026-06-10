@@ -15,10 +15,9 @@ const workout_routes_1 = require("./routes/workout.routes");
 const session_routes_1 = require("./routes/session.routes");
 const analytics_routes_1 = require("./routes/analytics.routes");
 const notification_routes_1 = require("./routes/notification.routes");
-const workoutPlanner_routes_1 = require("./routes/workoutPlanner.routes");
+const workoutApi_routes_1 = require("./routes/workoutApi.routes");
 const errorHandler_1 = require("./middleware/errorHandler");
 const logger_1 = require("./utils/logger");
-const workout_planner_1 = require("./lib/workout-planner");
 const app = (0, express_1.default)();
 const PORT = parseInt(process.env.PORT || '4000', 10);
 // ─── Security ───────────────────────────────────────────
@@ -49,10 +48,7 @@ app.use('/api/workouts', workout_routes_1.workoutRouter);
 app.use('/api/sessions', session_routes_1.sessionRouter);
 app.use('/api/analytics', analytics_routes_1.analyticsRouter);
 app.use('/api/notifications', notification_routes_1.notificationRouter);
-app.use('/api/workout-planner', workoutPlanner_routes_1.workoutPlannerRouter);
-// Add the new workout plan generator route
-const workoutPlanConfig = (0, workout_planner_1.createServerConfigFromEnv)(process.env);
-app.post('/api/workout-plan', (0, workout_planner_1.createWorkoutHandler)(workoutPlanConfig));
+app.use('/api/workout', workoutApi_routes_1.workoutApiRouter);
 // ─── Error Handler ──────────────────────────────────────
 app.use(errorHandler_1.errorHandler);
 // ─── Start ──────────────────────────────────────────────

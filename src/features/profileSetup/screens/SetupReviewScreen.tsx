@@ -11,6 +11,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { ProfileSetupStackScreenProps } from '../../../navigation/types';
 import { SetupTheme as T } from '../components/SetupTheme';
+import type { FitnessLevel, Gender } from '../context/ProfileSetupContext';
 import { useProfileSetup } from '../context/ProfileSetupContext';
 import { userApi } from '../../../services/api/user.api';
 import { useAuthStore } from '../../../store/authStore';
@@ -38,6 +39,10 @@ const GENDER_LABELS: Record<string, string> = {
     female: 'Female',
     other: 'Other',
 };
+
+const toBackendGender = (gender: Gender) => gender || undefined;
+
+const toBackendFitnessLevel = (level: FitnessLevel | null) => level || undefined;
 
 interface ReviewRowProps {
     icon: any; // Using any to avoid glyphMap version mismatch
@@ -71,35 +76,53 @@ const SetupReviewScreen: React.FC<Props> = ({ navigation }) => {
             Animated.spring(scaleAnim, { toValue: 1, useNativeDriver: true, speed: 12, bounciness: 8 }),
             Animated.timing(fadeAnim, { toValue: 1, duration: 450, useNativeDriver: true }),
         ]).start();
-    }, []);
+    }, [fadeAnim, scaleAnim]);
 
     const handleStartTraining = async () => {
         setLoading(true);
         try {
-            // 1. Persist profile to backend
+            console.log('[SetupReviewScreen] Starting profile save...');
+            
+            // 1. Save profile data to backend
+            console.log('[SetupReviewScreen] Saving profile...');
             await userApi.updateProfile({
-                gender: profile.gender?.toUpperCase() as any,
-                ageYears: profile.age,
-                heightCm: profile.heightCm,
-                weightKg: profile.weightKg,
-                fitnessLevel: profile.fitnessLevel?.toUpperCase() as any,
+                gender: toBackendGender(profile.gender),
+                age: profile.age,
+                height: profile.heightCm,
+                weight: profile.weightKg,
                 fitnessGoals: profile.goals,
+                fitnessLevel: toBackendFitnessLevel(profile.fitnessLevel),
                 onboardingDone: true,
             });
+            console.log('[SetupReviewScreen] Profile saved successfully');
 
-            // 2. Persist privacy settings
-            await userApi.updatePrivacy({
-                localOnly: profile.privacyLocalOnly,
-                shareAnalytics: profile.privacyShareAnalytics,
-                cameraAccess: profile.privacyCameraAccess,
+            // 2. Persist privacy settings to backend
+            console.log('[SetupReviewScreen] Saving privacy settings...');
+            await userApi.updateSettings({
+                privacyLocalOnly: profile.privacyLocalOnly,
+                privacyShareAnalytics: profile.privacyShareAnalytics,
+                privacyCameraAccess: profile.privacyCameraAccess,
             });
+            console.log('[SetupReviewScreen] Privacy settings saved');
 
-            // 3. Refresh global auth state to reflect onboarding completion
+            // 3. Sync local storage (fallback/offline support)
+            console.log('[SetupReviewScreen] Syncing local storage...');
+            await Promise.all([
+                import('../../../services/storage').then(m => m.storage.setOnboardingDone()),
+                import('../../../services/profileService').then(m => m.profileService.save(profile))
+            ]);
+            console.log('[SetupReviewScreen] Local storage synced');
+
+            // 4. Refresh global auth state to reflect onboarding completion
+            console.log('[SetupReviewScreen] Refreshing user state...');
             await refreshUser();
+            console.log('[SetupReviewScreen] User state refreshed');
+            console.log('[SetupReviewScreen] Setup complete - navigation should happen automatically');
 
-            // 4. Navigate to main app
-            navigation.getParent()?.navigate('Main');
+            // The navigation will happen automatically when the AuthStore updates and AppNavigator re-renders
+            // No explicit navigation needed
         } catch (err: any) {
+            console.error('[SetupReviewScreen] Setup failed:', err.message);
             Alert.alert('Setup Failed', err.message || 'Could not save profile. Please try again.');
         } finally {
             setLoading(false);

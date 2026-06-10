@@ -22,7 +22,7 @@ import TricepWorkoutScreen from '../features/workout/screens/TricepWorkoutScreen
 import TrackingScreen from '../features/workout/screens/TrackingScreen';
 import UpperWorkoutScreen from '../features/workout/screens/UpperWorkoutScreen';
 import WorkoutCompleteScreen from '../features/workout/screens/WorkoutCompleteScreen';
-import WorkoutPlannerTestScreen from '../features/workout/screens/WorkoutPlannerTestScreen';
+import WorkoutPlannerScreen from '../features/aiCoach/screens/WorkoutPlannerScreen';
 import WorkoutSelectionScreen from '../features/workout/screens/WorkoutSelectionScreen';
 import type { WorkoutStackParamList } from './types';
 
@@ -51,7 +51,7 @@ const WorkoutStackNavigator = () => (
 
         <Stack.Screen name="GhostGuideTest" component={GhostGuideTestScreen} />
         <Stack.Screen name="TempoClassifierTest" component={TempoClassifierTestScreen} />
-        <Stack.Screen name="WorkoutPlannerTest" component={WorkoutPlannerTestScreen} />
+        <Stack.Screen name="WorkoutPlannerTest" component={WorkoutPlannerScreen} />
 
         <Stack.Screen name="ExerciseDetails" component={ExerciseDetailsScreen} />
         <Stack.Screen name="Tracking" component={TrackingScreen} />

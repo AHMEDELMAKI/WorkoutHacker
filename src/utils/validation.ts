@@ -39,8 +39,9 @@ export const validateLogin = (email: string, password: string) => {
     return { email: eErr, password: pErr, isValid: !eErr && !pErr };
 };
 
-export const validateRegister = (name: string, email: string, password: string, confirmPassword?: string) => {
-    const nErr = getNameError(name);
+export const validateRegister = (firstName: string, lastName: string, email: string, password: string, confirmPassword?: string) => {
+    const fnErr = getNameError(firstName);
+    const lnErr = getNameError(lastName);
     const eErr = getEmailError(email);
     const pErr = getPasswordError(password);
     let cpErr = null;
@@ -48,11 +49,12 @@ export const validateRegister = (name: string, email: string, password: string, 
         cpErr = 'Passwords do not match';
     }
     return {
-        name: nErr,
+        firstName: fnErr,
+        lastName: lnErr,
         email: eErr,
         password: pErr,
         confirmPassword: cpErr,
-        isValid: !nErr && !eErr && !pErr && !cpErr
+        isValid: !fnErr && !lnErr && !eErr && !pErr && !cpErr
     };
 };
 

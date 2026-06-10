@@ -42,7 +42,10 @@ class AuthController {
             }, 'Login successful');
         }
         catch (err) {
-            const status = err.message === 'Invalid credentials' ? 401 : 500;
+            let status = 401;
+            if (err.message === 'User not found') {
+                status = 404;
+            }
             return (0, response_1.sendError)(res, err.message, status);
         }
     }

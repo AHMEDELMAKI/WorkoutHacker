@@ -6,6 +6,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.AuthService = void 0;
 const bcryptjs_1 = __importDefault(require("bcryptjs"));
 const prisma_1 = require("../lib/prisma");
+const logger_1 = require("../utils/logger");
 const jwt_1 = require("../utils/jwt");
 const email_1 = require("../utils/email");
 class AuthService {
@@ -28,10 +29,18 @@ class AuthService {
         await prisma_1.prisma.otpCode.create({
             data: { userId: user.id, code, type: 'EMAIL_VERIFICATION', expiresAt },
         });
-        try {
-            await (0, email_1.sendOtpEmail)(data.email, code);
+        // In development, log the OTP to the console. In production, send the email.
+        if (process.env.NODE_ENV === 'development') {
+            logger_1.logger.info(`DEV-ONLY: OTP for ${data.email} is ${code}`);
         }
-        catch { }
+        else {
+            try {
+                await (0, email_1.sendOtpEmail)(data.email, code);
+            }
+            catch (err) {
+                logger_1.logger.error('Failed to send OTP email:', err);
+            }
+        }
         const accessToken = (0, jwt_1.signAccessToken)({ sub: user.id, email: user.email });
         const refreshToken = await (0, jwt_1.createRefreshToken)(user.id);
         return { user, accessToken, refreshToken };
@@ -41,8 +50,11 @@ class AuthService {
             where: { email },
             include: { profile: true },
         });
-        if (!user || !(await bcryptjs_1.default.compare(password, user.passwordHash))) {
-            throw new Error('Invalid credentials');
+        if (!user) {
+            throw new Error('User not found');
+        }
+        if (!(await bcryptjs_1.default.compare(password, user.passwordHash))) {
+            throw new Error('Invalid password');
         }
         const accessToken = (0, jwt_1.signAccessToken)({ sub: user.id, email: user.email });
         const refreshToken = await (0, jwt_1.createRefreshToken)(user.id);
@@ -67,10 +79,18 @@ class AuthService {
             await prisma_1.prisma.otpCode.create({
                 data: { userId: user.id, code, type: 'PASSWORD_RESET', expiresAt },
             });
-            try {
-                await (0, email_1.sendPasswordResetEmail)(email, code);
+            // In development, log the OTP to the console.
+            if (process.env.NODE_ENV === 'development') {
+                logger_1.logger.info(`DEV-ONLY: Password Reset OTP for ${email} is ${code}`);
             }
-            catch { }
+            else {
+                try {
+                    await (0, email_1.sendPasswordResetEmail)(email, code);
+                }
+                catch (err) {
+                    logger_1.logger.error('Failed to send password reset email:', err);
+                }
+            }
         }
     }
     static async verifyOtp(email, code, type) {

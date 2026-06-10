@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { Alert } from 'react-native';
+import { Alert, InteractionManager } from 'react-native';
 import {
   ensureMicPermission,
   ensureVoskModel,
@@ -81,9 +81,17 @@ const GlobalVoiceController: React.FC = () => {
     let mounted = true;
 
     const setupVoice = async () => {
+      // Wait for interactions (and the Activity) to be ready
+      await new Promise(resolve => InteractionManager.runAfterInteractions(() => resolve(null)));
+      
+      // Additional safety delay for Android Activity attachment
+      await new Promise(resolve => setTimeout(resolve, 800));
+
       try {
         console.log('[GlobalVoiceController] Starting setup');
         
+        if (!mounted) return;
+
         const granted = await ensureMicPermission();
         if (!granted) {
           console.log('[GlobalVoiceController] Microphone permission denied');

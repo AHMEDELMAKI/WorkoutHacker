@@ -87,7 +87,6 @@ const App = () => {
 
   const content = (
     <>
-      <GlobalVoiceController />
       <StatusBar
         barStyle={isDarkMode ? 'light-content' : 'dark-content'}
         backgroundColor="transparent"

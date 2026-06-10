@@ -13,6 +13,22 @@ import SocialButton from '../components/SocialButton';
 
 type Props = AuthStackScreenProps<'Login'>;
 
+const isUnregisteredEmailError = (err: any) => {
+  const statusCode = err?.statusCode;
+  const message = String(err?.message || '').toLowerCase();
+
+  // Only redirect to Register if the backend explicitly says the user/email is not found.
+  // We avoid redirecting on generic 404s which might indicate a missing API route.
+  const isUserNotFoundMessage = 
+    message.includes('user not found') ||
+    message.includes('account not found') ||
+    message.includes('email not found') ||
+    message.includes('not registered') ||
+    message.includes('no account');
+
+  return statusCode === 404 && isUserNotFoundMessage;
+};
+
 const LoginScreen: React.FC<Props> = ({ navigation }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -47,8 +63,14 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
       // AppNavigator will automatically transition to Main or ProfileSetup
       // because isAuthenticated and user state change in the store.
     } catch (err: any) {
-      // Error is also in globalError, but we show alert for immediate feedback
-      Alert.alert('Login Failed', err.message || 'Invalid email or password');
+      if (isUnregisteredEmailError(err)) {
+        setEmail('');
+        setPassword('');
+        navigation.navigate('Register');
+      } else {
+        // Show generic error for invalid password or other issues
+        Alert.alert('Login Failed', err.message || 'Invalid email or password');
+      }
     }
   };
 

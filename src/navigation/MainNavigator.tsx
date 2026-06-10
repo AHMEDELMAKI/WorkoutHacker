@@ -6,7 +6,7 @@ import ProfileStackNavigator from './ProfileStackNavigator';
 import ProgressStackNavigator from './ProgressStackNavigator';
 import WorkoutStackNavigator from './WorkoutStackNavigator';
 import { MainTabParamList } from './types';
-import WorkoutPlannerScreen from '../features/aiCoach/screens/WorkoutPlannerScreen';
+import AICoachStackNavigator from './AICoachStackNavigator';
 
 const Tab = createBottomTabNavigator<MainTabParamList>();
 
@@ -65,7 +65,7 @@ const MainNavigator = () => (
         <Tab.Screen name="Home" component={HomeScreen} options={{ tabBarLabel: 'Home' }} />
         <Tab.Screen name="Workout" component={WorkoutStackNavigator} options={{ tabBarLabel: 'Workout' }} />
         <Tab.Screen name="ProgressStack" component={ProgressStackNavigator} options={{ tabBarLabel: 'Progress' }} />
-        <Tab.Screen name="AIPlanner" component={WorkoutPlannerScreen} options={{ tabBarLabel: 'AI Planner' }} />
+        <Tab.Screen name="AIPlanner" component={AICoachStackNavigator} options={{ tabBarLabel: 'AI Planner' }} />
         <Tab.Screen name="ProfileStack" component={ProfileStackNavigator} options={{ tabBarLabel: 'Profile' }} />
     </Tab.Navigator>
 );

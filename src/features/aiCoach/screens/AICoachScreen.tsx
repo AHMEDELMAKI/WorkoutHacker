@@ -491,10 +491,15 @@ const caStyles = StyleSheet.create({
     },
 });
 
+import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { AICoachStackParamList } from '../../../navigation/types';
+
 // ──────────────────────────────────────────────────────────────────
 // AI COACH SCREEN
 // ──────────────────────────────────────────────────────────────────
 const AICoachScreen: React.FC = () => {
+    const navigation = useNavigation<NativeStackNavigationProp<AICoachStackParamList>>();
     const fadeAnim = useRef(new Animated.Value(0)).current;
     const slideAnim = useRef(new Animated.Value(18)).current;
 
@@ -512,7 +517,7 @@ const AICoachScreen: React.FC = () => {
     useEffect(() => {
         const unsubscribe = subscribeVoiceAction((action) => {
             if (action === 'ask_coach') {
-                Alert.alert('AI Coach', 'Voice command received. Tell me what you want to improve.');
+                navigation.navigate('WorkoutPlanner');
                 return;
             }
 
@@ -535,7 +540,7 @@ const AICoachScreen: React.FC = () => {
         });
 
         return unsubscribe;
-    }, []);
+    }, [navigation]);
 
     return (
         <View style={styles.root}>
@@ -592,10 +597,10 @@ const AICoachScreen: React.FC = () => {
                         activeOpacity={0.85}
                         accessibilityRole="button"
                         accessibilityLabel="Ask your AI Coach a question"
-                        onPress={() => Alert.alert('AI Coach', 'Tell me your goal, and I will guide your next workout step.')}
+                        onPress={() => navigation.navigate('WorkoutPlanner')}
                     >
                         <Ionicons name="chatbubble-ellipses-outline" size={20} color="#FFFFFF" />
-                        <Text style={styles.askBtnText}>Ask Your Coach</Text>
+                        <Text style={styles.askBtnText}>Workout Planner</Text>
                     </TouchableOpacity>
                 </Animated.ScrollView>
             </SafeAreaView>

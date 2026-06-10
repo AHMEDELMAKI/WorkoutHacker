@@ -10,7 +10,7 @@ import { Worklets } from 'react-native-worklets-core';
 import { useAiStore } from '../store/aiStore';
 import { useWorkoutStore } from '../store/workoutStore';
 import { GhostGuideCore } from '../lib/ghostGuide';
-import { sessionApi } from '../services/api/session.api';
+// import { sessionApi } from '../services/api/session.api';
 import { PoseLandmarks } from 'react-native-pose-landmarks';
 
 // Secondary AI logic can be imported here
@@ -21,7 +21,7 @@ export const useAiPipeline = () => {
     const setLandmarks = useAiStore((s) => s.setLandmarks);
     const updateInference = useAiStore((s) => s.updateInference);
     const setGuideOverlay = useAiStore((s) => s.setGuideOverlay);
-    const currentSession = useWorkoutStore((s) => s.currentSession);
+    const currentWorkout = useWorkoutStore((s) => s.currentWorkout);
     const currentExercise = useWorkoutStore((s) => s.currentExercise);
 
     // Worklet-safe setter to update the JS-side store from the Frame Processor thread
@@ -68,16 +68,19 @@ export const useAiPipeline = () => {
     }, [updateStoreJS]);
 
     // Background sync loop for buffered metrics
+    /*
+    NOTE: The AI metrics API is not included in the Swagger specification.
+    This code is commented out to avoid breaking the application.
     useEffect(() => {
         PoseLandmarks.initPoseLandmarker();
 
         const syncInterval = setInterval(() => {
-            if (metricBuffer.current.length > 0 && currentSession) {
+            if (metricBuffer.current.length > 0 && currentWorkout) {
                 const batch = [...metricBuffer.current];
                 metricBuffer.current = [];
-                sessionApi.logAiMetricsBatch(currentSession.id, batch).catch(e => {
-                    console.warn('[AI Pipeline] Batch sync failed:', e.message);
-                });
+                // sessionApi.logAiMetricsBatch(currentWorkout.id, batch).catch(e => {
+                //     console.warn('[AI Pipeline] Batch sync failed:', e.message);
+                // });
             }
         }, 10000); // Sync every 10 seconds
 
@@ -85,7 +88,8 @@ export const useAiPipeline = () => {
             PoseLandmarks.closePoseLandmarker();
             clearInterval(syncInterval);
         };
-    }, [currentSession]);
+    }, [currentWorkout]);
+    */
 
     return { frameProcessor };
 };
