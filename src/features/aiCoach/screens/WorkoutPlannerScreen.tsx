@@ -1,13 +1,11 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  ActivityIndicator,
   LogBox,
   Platform,
   SafeAreaView,
   ScrollView,
   StatusBar,
   StyleSheet,
-  Text,
   TextInput,
   TouchableOpacity,
   View,
@@ -19,6 +17,8 @@ import { generatePlan } from '../../../lib/workout-planner';
 import type { WorkoutPlan, WorkoutRequest } from '../../../lib/workout-planner/shared/types';
 import { secureStorage } from '../../../services/secureStorage';
 import { userApi } from '../../../services/api/user.api';
+import AppText from '../../../components/AppText';
+import AppButton from '../../../components/AppButton';
 
 type Goal = 'strength' | 'hypertrophy' | 'other';
 type Level = 'beginner' | 'intermediate' | 'advanced';
@@ -26,7 +26,7 @@ type PlanGoal = WorkoutPlan['primaryGoal'];
 type GenderOption = 'not_specified' | 'male' | 'female';
 
 const API_BASE_URL = 'https://gymhacker.onrender.com';
-const API_ENDPOINT = '/api/workout';
+const API_ENDPOINT = '/workout';
 let logRoutingInstalled = false;
 
 function WorkoutPlannerScreen() {
@@ -526,14 +526,26 @@ function WorkoutPlannerScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="dark-content" />
-      <ScrollView contentContainerStyle={styles.container}>
-        <Text style={styles.title}>Workout Planner Demo</Text>
-        <Text style={styles.subtitle}>React Native client hitting local server at {API_BASE_URL}</Text>
+    <View style={styles.root}>
+      <StatusBar barStyle="light-content" backgroundColor={WT.colors.header} />
+      <View style={styles.header}>
+        <SafeAreaView edges={['top']}>
+          <View style={styles.headerInner}>
+            <AppText variant="h2" color={WT.colors.textLight} style={styles.headerTitle}>
+              Workout Planner 🧠
+            </AppText>
+            <AppText variant="body" color="rgba(255,255,255,0.80)">
+              Generate custom AI-powered training plans
+            </AppText>
+          </View>
+        </SafeAreaView>
+      </View>
 
+      <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
         <View style={styles.card}>
-          <Text style={styles.label}>Days per week</Text>
+          <AppText variant="caption" style={styles.sectionLabel}>BASIC INFO</AppText>
+          
+          <AppText variant="bodySmall" bold color={WT.colors.textDark} style={styles.fieldLabel}>Days per week</AppText>
           <TextInput
             value={daysPerWeek}
             onChangeText={setDaysPerWeek}
@@ -541,7 +553,7 @@ function WorkoutPlannerScreen() {
             style={styles.input}
           />
 
-          <Text style={styles.label}>Primary goal</Text>
+          <AppText variant="bodySmall" bold color={WT.colors.textDark} style={styles.fieldLabel}>Primary goal</AppText>
           <View style={styles.row}>
             <Choice label="Strength" active={goal === 'strength'} onPress={() => setGoal('strength')} />
             <Choice
@@ -556,11 +568,12 @@ function WorkoutPlannerScreen() {
               value={customPrimaryGoal}
               onChangeText={setCustomPrimaryGoal}
               placeholder="Enter your primary goal"
-              style={styles.input}
+              placeholderTextColor={WT.colors.textMuted}
+              style={[styles.input, { marginTop: WT.spacing.xs }]}
             />
           ) : null}
 
-          <Text style={styles.label}>Training level</Text>
+          <AppText variant="bodySmall" bold color={WT.colors.textDark} style={styles.fieldLabel}>Training level</AppText>
           <View style={styles.row}>
             <Choice
               label="Beginner"
@@ -579,25 +592,29 @@ function WorkoutPlannerScreen() {
             />
           </View>
 
-          <Text style={styles.label}>Program duration (weeks, optional)</Text>
+          <AppText variant="bodySmall" bold color={WT.colors.textDark} style={styles.fieldLabel}>Program duration (weeks, optional)</AppText>
           <TextInput
             value={programDurationWeeks}
             onChangeText={setProgramDurationWeeks}
             keyboardType="number-pad"
             placeholder="e.g. 8"
+            placeholderTextColor={WT.colors.textMuted}
             style={styles.input}
           />
 
-          <Text style={styles.label}>Equipment available (comma-separated)</Text>
+          <AppText variant="bodySmall" bold color={WT.colors.textDark} style={styles.fieldLabel}>Equipment available</AppText>
           <TextInput
             value={equipmentAvailable}
             onChangeText={setEquipmentAvailable}
             placeholder="barbell, dumbbell, bodyweight"
+            placeholderTextColor={WT.colors.textMuted}
             style={styles.input}
           />
 
-          <Text style={styles.sectionTitle}>Demographics (optional)</Text>
-          <Text style={styles.label}>Gender</Text>
+          <View style={styles.divider} />
+
+          <AppText variant="caption" style={styles.sectionLabel}>DEMOGRAPHICS (OPTIONAL)</AppText>
+          <AppText variant="bodySmall" bold color={WT.colors.textDark} style={styles.fieldLabel}>Gender</AppText>
           <View style={styles.row}>
             <Choice
               label="Not specified"
@@ -611,91 +628,107 @@ function WorkoutPlannerScreen() {
               onPress={() => setGenderOption('female')}
             />
           </View>
-          <Text style={styles.label}>Body weight (kg)</Text>
-          <TextInput
-            value={bodyWeight}
-            onChangeText={setBodyWeight}
-            keyboardType="decimal-pad"
-            placeholder="Body weight (kg)"
-            style={styles.input}
-          />
-          <Text style={styles.label}>Height (cm)</Text>
-          <TextInput
-            value={height}
-            onChangeText={setHeight}
-            keyboardType="decimal-pad"
-            placeholder="Height (cm)"
-            style={styles.input}
-          />
-          <Text style={styles.label}>Age</Text>
-          <TextInput
-            value={age}
-            onChangeText={setAge}
-            keyboardType="number-pad"
-            placeholder="Age"
-            style={styles.input}
-          />
-          <Text style={styles.label}>Training age (years)</Text>
-          <TextInput
-            value={trainingAge}
-            onChangeText={setTrainingAge}
-            keyboardType="decimal-pad"
-            placeholder="Training age (years)"
-            style={styles.input}
-          />
 
-          <Text style={styles.sectionTitle}>Limitations (optional)</Text>
-          <Text style={styles.label}>Injuries</Text>
+          <View style={styles.formRow}>
+            <View style={{ flex: 1, marginRight: WT.spacing.sm }}>
+              <AppText variant="bodySmall" bold color={WT.colors.textDark} style={styles.fieldLabel}>Weight (kg)</AppText>
+              <TextInput
+                value={bodyWeight}
+                onChangeText={setBodyWeight}
+                keyboardType="decimal-pad"
+                style={styles.input}
+              />
+            </View>
+            <View style={{ flex: 1 }}>
+              <AppText variant="bodySmall" bold color={WT.colors.textDark} style={styles.fieldLabel}>Height (cm)</AppText>
+              <TextInput
+                value={height}
+                onChangeText={setHeight}
+                keyboardType="decimal-pad"
+                style={styles.input}
+              />
+            </View>
+          </View>
+
+          <View style={styles.formRow}>
+            <View style={{ flex: 1, marginRight: WT.spacing.sm }}>
+              <AppText variant="bodySmall" bold color={WT.colors.textDark} style={styles.fieldLabel}>Age</AppText>
+              <TextInput
+                value={age}
+                onChangeText={setAge}
+                keyboardType="number-pad"
+                style={styles.input}
+              />
+            </View>
+            <View style={{ flex: 1 }}>
+              <AppText variant="bodySmall" bold color={WT.colors.textDark} style={styles.fieldLabel}>Training Age</AppText>
+              <TextInput
+                value={trainingAge}
+                onChangeText={setTrainingAge}
+                keyboardType="decimal-pad"
+                style={styles.input}
+              />
+            </View>
+          </View>
+
+          <View style={styles.divider} />
+
+          <AppText variant="caption" style={styles.sectionLabel}>LIMITATIONS (OPTIONAL)</AppText>
+          <AppText variant="bodySmall" bold color={WT.colors.textDark} style={styles.fieldLabel}>Injuries</AppText>
           <TextInput
             value={injuries}
             onChangeText={setInjuries}
             placeholder="Injuries (comma-separated)"
+            placeholderTextColor={WT.colors.textMuted}
             style={styles.input}
           />
-          <Text style={styles.label}>Mobility difficulties</Text>
+          <AppText variant="bodySmall" bold color={WT.colors.textDark} style={styles.fieldLabel}>Mobility</AppText>
           <TextInput
             value={mobilityDifficulties}
             onChangeText={setMobilityDifficulties}
-            placeholder="Mobility difficulties (comma-separated)"
+            placeholder="e.g. tight hips"
+            placeholderTextColor={WT.colors.textMuted}
             style={styles.input}
           />
 
-          <Text style={styles.label}>Current RPE (optional)</Text>
+          <View style={styles.divider} />
+
+          <AppText variant="caption" style={styles.sectionLabel}>ADDITIONAL CONTEXT</AppText>
+          <AppText variant="bodySmall" bold color={WT.colors.textDark} style={styles.fieldLabel}>Current RPE (1-10)</AppText>
           <TextInput
             value={currentRPE}
             onChangeText={setCurrentRPE}
             keyboardType="decimal-pad"
-            placeholder="1-10"
+            placeholder="e.g. 8"
+            placeholderTextColor={WT.colors.textMuted}
             style={styles.input}
           />
 
-          <Text style={styles.label}>Natural language request (optional)</Text>
+          <AppText variant="bodySmall" bold color={WT.colors.textDark} style={styles.fieldLabel}>Custom Request</AppText>
           <TextInput
             value={naturalLanguageRequest}
             onChangeText={setNaturalLanguageRequest}
             placeholder="I only have 45 minutes on weekdays..."
+            placeholderTextColor={WT.colors.textMuted}
             multiline
             textAlignVertical="top"
             style={[styles.input, styles.multilineInput]}
           />
 
-          <Text style={styles.label}>Current plan context (optional)</Text>
-          <Text style={styles.helpText}>
-            Use your latest generated plan, or enter a simple summary of your current plan.
-          </Text>
+          <AppText variant="bodySmall" bold color={WT.colors.textDark} style={styles.fieldLabel}>Context Mode</AppText>
           <View style={styles.row}>
             <Choice
-              label="Do not use"
+              label="None"
               active={currentPlanMode === 'none'}
               onPress={() => setCurrentPlanMode('none')}
             />
             <Choice
-              label="Use latest generated plan"
+              label="Latest Plan"
               active={currentPlanMode === 'latest'}
               onPress={() => setCurrentPlanMode('latest')}
             />
             <Choice
-              label="Enter current plan details"
+              label="Manual"
               active={currentPlanMode === 'manual'}
               onPress={() => setCurrentPlanMode('manual')}
             />
@@ -703,14 +736,19 @@ function WorkoutPlannerScreen() {
 
           {currentPlanMode === 'manual' ? (
             <View style={styles.inlineSection}>
-              <Text style={styles.label}>Current plan name</Text>
+              <View style={styles.divider} />
+              <AppText variant="caption" style={styles.sectionLabel}>MANUAL PLAN CONTEXT</AppText>
+              
+              <AppText variant="bodySmall" bold color={WT.colors.textDark} style={styles.fieldLabel}>Plan Name</AppText>
               <TextInput
                 value={currentPlanName}
                 onChangeText={setCurrentPlanName}
                 placeholder="Current plan name"
+                placeholderTextColor={WT.colors.textMuted}
                 style={styles.input}
               />
-              <Text style={styles.label}>Current plan primary goal</Text>
+
+              <AppText variant="bodySmall" bold color={WT.colors.textDark} style={styles.fieldLabel}>Goal</AppText>
               <View style={styles.row}>
                 <Choice
                   label="Strength"
@@ -723,296 +761,227 @@ function WorkoutPlannerScreen() {
                   onPress={() => setCurrentPlanPrimaryGoal('hypertrophy')}
                 />
                 <Choice
-                  label="General fitness"
+                  label="Fitness"
                   active={currentPlanPrimaryGoal === 'general_fitness'}
                   onPress={() => setCurrentPlanPrimaryGoal('general_fitness')}
                 />
               </View>
-              <Text style={styles.label}>Current plan training level</Text>
-              <View style={styles.row}>
-                <Choice
-                  label="Beginner"
-                  active={currentPlanTrainingLevel === 'beginner'}
-                  onPress={() => setCurrentPlanTrainingLevel('beginner')}
-                />
-                <Choice
-                  label="Intermediate"
-                  active={currentPlanTrainingLevel === 'intermediate'}
-                  onPress={() => setCurrentPlanTrainingLevel('intermediate')}
-                />
-                <Choice
-                  label="Advanced"
-                  active={currentPlanTrainingLevel === 'advanced'}
-                  onPress={() => setCurrentPlanTrainingLevel('advanced')}
-                />
-              </View>
-              <Text style={styles.label}>Current plan days/week</Text>
+
+              <AppText variant="bodySmall" bold color={WT.colors.textDark} style={styles.fieldLabel}>Days/Week</AppText>
               <TextInput
                 value={currentPlanDaysPerWeek}
                 onChangeText={setCurrentPlanDaysPerWeek}
                 keyboardType="number-pad"
-                placeholder="Current plan days/week"
                 style={styles.input}
               />
-              <Text style={styles.label}>Current plan duration (weeks)</Text>
-              <TextInput
-                value={currentPlanDurationWeeks}
-                onChangeText={setCurrentPlanDurationWeeks}
-                keyboardType="number-pad"
-                placeholder="Current plan duration (weeks)"
-                style={styles.input}
-              />
-              <Text style={styles.label}>Current plan rationale</Text>
-              <TextInput
-                value={currentPlanRationale}
-                onChangeText={setCurrentPlanRationale}
-                placeholder="Why this plan exists"
-                multiline
-                textAlignVertical="top"
-                style={[styles.input, styles.multilineInput]}
-              />
-              <Text style={styles.label}>Inter-set recovery policy</Text>
-              <TextInput
-                value={currentPlanInterSetRecoveryPolicy}
-                onChangeText={setCurrentPlanInterSetRecoveryPolicy}
-                placeholder="e.g. 2-3 min compounds, 60-90 sec accessories"
-                style={styles.input}
-              />
-              <Text style={styles.label}>Progressive overload rules</Text>
-              <Text style={styles.helpText}>One per line: ruleName: description</Text>
+
+              <AppText variant="bodySmall" bold color={WT.colors.textDark} style={styles.fieldLabel}>Progressive Overload</AppText>
+              <AppText variant="caption" color={WT.colors.textMuted} style={{ marginBottom: 4 }}>
+                ruleName: description (one per line)
+              </AppText>
               <TextInput
                 value={currentPlanProgressiveOverload}
                 onChangeText={setCurrentPlanProgressiveOverload}
-                placeholder={"Load progression: Add 2.5kg weekly if RPE <= 8\nVolume progression: Add 1 set after week 2"}
+                placeholder={"Load: Add 2.5kg weekly if RPE <= 8"}
+                placeholderTextColor={WT.colors.textMuted}
                 multiline
                 textAlignVertical="top"
                 style={[styles.input, styles.multilineInput]}
               />
-              <Text style={styles.sectionTitle}>Current plan day</Text>
-              <Text style={styles.label}>Day label</Text>
-              <TextInput
-                value={currentPlanDayLabel}
-                onChangeText={setCurrentPlanDayLabel}
-                placeholder="e.g. Day 1"
-                style={styles.input}
-              />
-              <Text style={styles.label}>Day focus</Text>
-              <TextInput
-                value={currentPlanDayFocus}
-                onChangeText={setCurrentPlanDayFocus}
-                placeholder="e.g. Upper body strength"
-                style={styles.input}
-              />
-              <Text style={styles.label}>Warmup</Text>
-              <Text style={styles.helpText}>One warmup item per line</Text>
-              <TextInput
-                value={currentPlanDayWarmup}
-                onChangeText={setCurrentPlanDayWarmup}
-                placeholder={"5 min row\nband shoulder activation"}
-                multiline
-                textAlignVertical="top"
-                style={[styles.input, styles.multilineInput]}
-              />
-              <Text style={styles.sectionTitle}>Current plan exercise</Text>
-              <Text style={styles.label}>Exercise name</Text>
+
+              <AppText variant="bodySmall" bold color={WT.colors.textDark} style={styles.fieldLabel}>Sample Exercise</AppText>
               <TextInput
                 value={currentPlanExerciseName}
                 onChangeText={setCurrentPlanExerciseName}
                 placeholder="e.g. Back Squat"
+                placeholderTextColor={WT.colors.textMuted}
                 style={styles.input}
               />
-              <Text style={styles.label}>Exercise equipment</Text>
-              <TextInput
-                value={currentPlanExerciseEquipment}
-                onChangeText={setCurrentPlanExerciseEquipment}
-                placeholder="e.g. barbell"
-                style={styles.input}
-              />
-              <Text style={styles.label}>Exercise notes (optional)</Text>
-              <TextInput
-                value={currentPlanExerciseNotes}
-                onChangeText={setCurrentPlanExerciseNotes}
-                placeholder="Optional technique cues"
-                style={styles.input}
-              />
-              <Text style={styles.label}>Exercise sets</Text>
-              <Text style={styles.helpText}>Format: sets,weight,reps,rest,targetRpe (e.g. 3,80,10,90,8)</Text>
               <TextInput
                 value={currentPlanExerciseSets}
                 onChangeText={setCurrentPlanExerciseSets}
-                placeholder={"3,80,10,90,8"}
+                placeholder="sets,weight,reps,rest,targetRpe"
+                placeholderTextColor={WT.colors.textMuted}
                 style={styles.input}
               />
             </View>
           ) : null}
 
-          <TouchableOpacity style={styles.button} onPress={onGenerate} disabled={loading}>
-            <Text style={styles.buttonText}>{loading ? 'Thinking...' : 'Generate Plan'}</Text>
-          </TouchableOpacity>
+          <AppButton
+            title={loading ? 'Thinking...' : 'Generate Plan ✨'}
+            onPress={onGenerate}
+            loading={loading}
+            style={styles.generateButton}
+          />
 
-          {loading ? <ActivityIndicator style={styles.spinner} /> : null}
-          {error ? <Text style={styles.error}>{error}</Text> : null}
+          {error ? (
+            <AppText variant="bodySmall" color={WT.colors.danger} style={styles.errorText}>
+              {error}
+            </AppText>
+          ) : null}
         </View>
 
         <View style={styles.card}>
-          <Text style={styles.label}>Request preview</Text>
-          <Text style={styles.code}>{JSON.stringify(requestPreview, null, 2)}</Text>
+          <AppText variant="caption" style={styles.sectionLabel}>REQUEST PREVIEW</AppText>
+          <View style={styles.codeContainer}>
+            <AppText style={styles.code}>{JSON.stringify(requestPreview, null, 2)}</AppText>
+          </View>
         </View>
 
         <View style={styles.card}>
           <View style={styles.labelRow}>
-            <Text style={styles.label}>Server response</Text>
+            <AppText variant="caption" style={styles.sectionLabel}>SERVER RESPONSE</AppText>
             {plan ? (
               <TouchableOpacity style={styles.copyButton} onPress={onCopy}>
-                <Text style={styles.copyButtonText}>{copied ? 'Copied!' : 'Copy'}</Text>
+                <AppText variant="caption" bold color={WT.colors.primary}>
+                  {copied ? 'Copied!' : 'Copy Plan'}
+                </AppText>
               </TouchableOpacity>
             ) : null}
           </View>
-          <Text style={styles.code}>
-            {plan ? JSON.stringify(plan, null, 2) : 'No plan yet. Submit request to test end-to-end behavior.'}
-          </Text>
+          <View style={styles.codeContainer}>
+            <AppText style={styles.code}>
+              {plan ? JSON.stringify(plan, null, 2) : 'No plan yet. Submit request to test end-to-end behavior.'}
+            </AppText>
+          </View>
         </View>
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 
 function Choice({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
   return (
     <TouchableOpacity style={[styles.choice, active ? styles.choiceActive : null]} onPress={onPress}>
-      <Text style={[styles.choiceText, active ? styles.choiceTextActive : null]}>{label}</Text>
+      <AppText variant="bodySmall" bold color={active ? WT.colors.textLight : WT.colors.primary}>
+        {label}
+      </AppText>
     </TouchableOpacity>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
+  root: {
     flex: 1,
     backgroundColor: WT.colors.background,
   },
+  header: {
+    backgroundColor: WT.colors.header,
+    borderBottomLeftRadius: WT.radius.lg,
+    borderBottomRightRadius: WT.radius.lg,
+    paddingHorizontal: WT.spacing.lg,
+    paddingBottom: WT.spacing.lg,
+    ...WT.shadow.card,
+  },
+  headerInner: {
+    paddingTop: WT.spacing.md,
+  },
+  headerTitle: {
+    fontWeight: '800',
+    marginBottom: 4,
+  },
   container: {
     padding: WT.spacing.lg,
-    paddingBottom: 40,
-    gap: WT.spacing.sm,
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: '800',
-    color: WT.colors.textLight,
-  },
-  subtitle: {
-    fontSize: 14,
-    color: WT.colors.textLight,
-    opacity: 0.85,
-    marginBottom: 4,
+    paddingBottom: WT.spacing.xl * 2,
   },
   card: {
     backgroundColor: WT.colors.card,
     borderRadius: WT.radius.md,
-    padding: WT.spacing.md,
+    padding: WT.spacing.lg,
+    marginBottom: WT.spacing.lg,
     borderWidth: 1,
     borderColor: WT.colors.cardBorder,
-    gap: WT.spacing.sm,
     ...WT.shadow.card,
+  },
+  sectionLabel: {
+    fontWeight: '700',
+    color: WT.colors.textMuted,
+    letterSpacing: 1.2,
+    marginBottom: WT.spacing.md,
+  },
+  fieldLabel: {
+    marginBottom: 4,
+    marginTop: WT.spacing.sm,
+  },
+  input: {
+    backgroundColor: '#FFF',
+    borderWidth: 1,
+    borderColor: WT.colors.cardBorder,
+    borderRadius: WT.radius.sm,
+    paddingHorizontal: WT.spacing.md,
+    height: 48,
+    fontSize: 15,
+    color: WT.colors.textDark,
+  },
+  multilineInput: {
+    height: 100,
+    paddingTop: WT.spacing.sm,
+    textAlignVertical: 'top',
   },
   row: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: WT.spacing.xs,
+    marginTop: 2,
   },
-  label: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: WT.colors.textDark,
+  formRow: {
+    flexDirection: 'row',
+    marginTop: 2,
   },
-  sectionTitle: {
-    marginTop: WT.spacing.sm,
-    fontSize: 15,
-    fontWeight: '800',
-    color: WT.colors.primary,
-  },
-  input: {
-    borderWidth: 1,
-    borderColor: WT.colors.cardBorder,
-    borderRadius: WT.radius.sm,
-    paddingHorizontal: WT.spacing.sm,
-    paddingVertical: WT.spacing.xs,
-    fontSize: 16,
-    color: WT.colors.textDark,
-  },
-  multilineInput: {
-    minHeight: 80,
-  },
-  helpText: {
-    marginTop: -2,
-    fontSize: 12,
-    color: WT.colors.textMuted,
+  divider: {
+    height: 1,
+    backgroundColor: WT.colors.cardBorder,
+    marginVertical: WT.spacing.lg,
+    opacity: 0.5,
   },
   inlineSection: {
-    gap: WT.spacing.sm,
+    marginTop: WT.spacing.sm,
   },
   choice: {
-    borderRadius: 999,
+    borderRadius: 20,
     borderWidth: 1,
     borderColor: WT.colors.primary,
-    paddingHorizontal: WT.spacing.sm,
-    paddingVertical: WT.spacing.xs,
+    paddingHorizontal: WT.spacing.md,
+    paddingVertical: 6,
+    backgroundColor: '#FFF',
   },
   choiceActive: {
     backgroundColor: WT.colors.primary,
-    borderColor: WT.colors.primary,
   },
-  choiceText: {
-    color: WT.colors.primary,
-    fontWeight: '600',
+  generateButton: {
+    marginTop: WT.spacing.lg,
   },
-  choiceTextActive: {
-    color: WT.colors.textLight,
-  },
-  button: {
+  errorText: {
     marginTop: WT.spacing.sm,
+    textAlign: 'center',
+  },
+  codeContainer: {
+    backgroundColor: '#F8F9FB',
     borderRadius: WT.radius.sm,
-    backgroundColor: WT.colors.primaryDark,
-    alignItems: 'center',
-    paddingVertical: WT.spacing.sm + 2,
-    ...WT.shadow.button,
-  },
-  buttonText: {
-    color: WT.colors.textLight,
-    fontWeight: '700',
-    fontSize: 16,
-  },
-  spinner: {
-    marginTop: WT.spacing.sm,
-  },
-  error: {
-    marginTop: WT.spacing.sm,
-    color: WT.colors.danger,
-    fontWeight: '600',
-  },
-  labelRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  copyButton: {
-    borderRadius: WT.radius.sm,
+    padding: WT.spacing.md,
     borderWidth: 1,
-    borderColor: WT.colors.primary,
-    paddingHorizontal: WT.spacing.sm,
-    paddingVertical: 4,
-  },
-  copyButtonText: {
-    color: WT.colors.primary,
-    fontSize: 12,
-    fontWeight: '700',
+    borderColor: WT.colors.cardBorder,
   },
   code: {
     fontFamily: Platform.select({ ios: 'Menlo', android: 'monospace' }),
     fontSize: 12,
     color: WT.colors.textDark,
   },
+  labelRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: WT.spacing.md,
+  },
+  copyButton: {
+    paddingHorizontal: WT.spacing.sm,
+    paddingVertical: 4,
+    borderRadius: WT.radius.sm,
+    borderWidth: 1,
+    borderColor: WT.colors.primary,
+  },
 });
+
 
 function parseList(value: string): string[] {
   return value

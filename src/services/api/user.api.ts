@@ -105,7 +105,7 @@ export const userApi = {
                 });
             console.log('[userApi.getProfile] Full response:', JSON.stringify(result, null, 2));
             const normalized = normalizeUserProfile(result);
-            
+
             console.log('[userApi.getProfile] Normalized profile:', normalized);
             return normalized;
         } catch (err: any) {
@@ -117,11 +117,11 @@ export const userApi = {
 
     async updateProfile(data: Partial<UserProfile>): Promise<UserProfile> {
         const userId = getUserId();
-        
+
         // Map fields to match BOTH the gemini-code reference AND the local backend code.
         // This ensures compatibility across different environment versions.
         const payload: any = { ...data };
-        
+
         if (payload.age !== undefined) {
             const val = Number(payload.age);
             payload.age = val;
@@ -157,7 +157,7 @@ export const userApi = {
     async getSettings(): Promise<UserSettings> {
         const userId = getUserId();
         const result = await api.get<any>(`/users/${userId}/settings`);
-        
+
         // Handle both wrapped and direct object formats
         return result.data || result;
     },
@@ -177,7 +177,7 @@ export const userApi = {
                 }
                 throw err;
             });
-        
+
         // Handle both wrapped and direct object formats
         return result.data || result;
     },
@@ -190,7 +190,7 @@ export const userApi = {
     async getOnboardingStatus(): Promise<{ onboardingDone: boolean }> {
         const userId = getUserId();
         const result = await api.get<any>(`/users/${userId}/onboarding`);
-        
+
         // Handle both wrapped and direct object formats
         return result.data || result;
     },
@@ -213,6 +213,7 @@ export const userApi = {
         return result.data;
     },
 };
+
 
 // ─── Analytics ───────────────────────────────────────────
 /*

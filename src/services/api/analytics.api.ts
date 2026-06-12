@@ -34,34 +34,37 @@ export interface PersonalRecord {
     workoutSession: { startedAt: string };
 }
 
+const unwrap = (res: any) => (res && res.data !== undefined ? res.data : res);
+
 export const analyticsApi = {
     getSummary: async (): Promise<AnalyticsSummary> => {
-        const response = await api.get<{ data: AnalyticsSummary }>('/analytics/summary');
-        return response.data;
+        const response = await api.get<any>('/analytics/summary');
+        return unwrap(response);
     },
 
     getWeekly: async (): Promise<WeeklySummary> => {
-        const response = await api.get<{ data: WeeklySummary }>('/analytics/weekly');
-        return response.data;
+        const response = await api.get<any>('/analytics/weekly');
+        return unwrap(response);
     },
 
     getStreaks: async (): Promise<{ currentStreak: number; longestStreak: number; lastWorkoutAt: string | null }> => {
-        const response = await api.get<{ data: any }>('/analytics/streaks');
-        return response.data;
+        const response = await api.get<any>('/analytics/streaks');
+        return unwrap(response);
     },
 
     getFatigueTrend: async (): Promise<FatigueTrend[]> => {
-        const response = await api.get<{ data: FatigueTrend[] }>('/analytics/fatigue-trend');
-        return response.data;
+        const response = await api.get<any>('/analytics/fatigue-trend');
+        return unwrap(response);
     },
 
     getFormTrend: async (): Promise<FormTrend[]> => {
-        const response = await api.get<{ data: FormTrend[] }>('/analytics/form-trend');
-        return response.data;
+        const response = await api.get<any>('/analytics/form-trend');
+        return unwrap(response);
     },
 
     getPersonalRecords: async (): Promise<PersonalRecord[]> => {
-        const response = await api.get<{ data: PersonalRecord[] }>('/analytics/personal-records');
-        return response.data;
+        const response = await api.get<any>('/analytics/personal-records');
+        return unwrap(response);
     },
 };
+

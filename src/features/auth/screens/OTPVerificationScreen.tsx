@@ -19,8 +19,9 @@ const RESEND_SECONDS = 60;
 
 const OTPVerificationScreen: React.FC<Props> = ({ navigation, route }) => {
   const { email } = route.params;
-  const [otp, setOtp] = useState(['', '', '', '']);
+  const [otp, setOtp] = useState(['', '', '', '', '', '']);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | undefined>();
   const [timer, setTimer] = useState(RESEND_SECONDS);
   const [resending, setResending] = useState(false);
 
@@ -30,21 +31,34 @@ const OTPVerificationScreen: React.FC<Props> = ({ navigation, route }) => {
     return () => clearInterval(id);
   }, [timer]);
 
-  const handleVerify = () => {
+  const handleVerify = async () => {
+    const code = otp.join('');
+    if (code.length < 6) return;
+
+    setError(undefined);
     setLoading(true);
-    setTimeout(() => {
+    try {
+      const token = await authApi.verifyOtp(email, code, 'PASSWORD_RESET');
       setLoading(false);
-      navigation.navigate('ResetPassword', { token: 'mock-token' });
-    }, 1500);
+      navigation.navigate('ResetPassword', { token });
+    } catch (err: any) {
+      setError(err.message || 'Invalid verification code');
+      setLoading(false);
+    }
   };
 
-  const handleResend = () => {
+  const handleResend = async () => {
     setResending(true);
-    setOtp(['', '', '', '']);
-    setTimeout(() => {
-      setResending(false);
+    setError(undefined);
+    setOtp(['', '', '', '', '', '']);
+    try {
+      await authApi.forgotPassword(email);
       setTimer(RESEND_SECONDS);
-    }, 800);
+    } catch (err: any) {
+      setError(err.message || 'Failed to resend code');
+    } finally {
+      setResending(false);
+    }
   };
 
   const isComplete = otp.every((d) => d !== '');
@@ -77,8 +91,12 @@ const OTPVerificationScreen: React.FC<Props> = ({ navigation, route }) => {
 
           {/* OTP Boxes */}
           <View style={styles.otpWrap}>
-            <OTPInput value={otp} onChange={setOtp} length={4} />
+            <OTPInput value={otp} onChange={setOtp} length={6} />
           </View>
+
+          {error ? (
+            <Text style={styles.errorText}>{error}</Text>
+          ) : null}
 
           {/* Resend row */}
           <View style={styles.resendRow}>
@@ -188,6 +206,12 @@ const styles = StyleSheet.create({
   },
   verifyBtn: {
     width: '100%',
+  },
+  errorText: {
+    color: '#FF5252',
+    fontSize: 13,
+    marginBottom: 16,
+    textAlign: 'center',
   },
 });
 

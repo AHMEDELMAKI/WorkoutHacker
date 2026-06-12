@@ -37,10 +37,16 @@ const PUBLIC_AUTH_PATHS = [
     '/auth/register',
     '/auth/forgot-password',
     '/auth/reset-password',
+    '/auth/verify-otp',
+    '/api/auth/login',
+    '/api/auth/register',
+    '/api/auth/forgot-password',
+    '/api/auth/reset-password',
+    '/api/auth/verify-otp',
 ];
 
 const isPublicAuthPath = (path: string) =>
-    PUBLIC_AUTH_PATHS.some((publicPath) => path.startsWith(publicPath));
+    PUBLIC_AUTH_PATHS.some((publicPath) => path === publicPath || path.startsWith(publicPath));
 
 function processQueue(error: unknown, token: string | null) {
     failedQueue.forEach(({ resolve, reject }) => {

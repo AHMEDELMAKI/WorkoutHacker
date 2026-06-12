@@ -91,42 +91,47 @@ export const authApi = {
 
     async login(email: string, password: string): Promise<AuthTokens> {
         console.log('[authApi.login] Calling backend...');
-        const result = await api.post<{ data: any }>('/auth/login', { email, password });
+        // Use any to safely handle different wrapper formats
+        const response = await api.post<any>('/auth/login', { email, password });
+        console.log('[authApi.login] Raw response:', JSON.stringify(response, null, 2));
         
-        console.log('[authApi.login] Raw response:', JSON.stringify(result, null, 2));
-        
-        // Handle both old (JWT string) and new (full object) response formats
+        // Normalize response: extract from .data if present, else use root
+        const result = response.data !== undefined ? response.data : response;
+
         let accessToken: string;
         let refreshToken: string;
         let user: AuthUser;
         
-        if (typeof result.data === 'string') {
+        if (typeof result === 'string') {
             // Old backend format: just returns the JWT token string
-            console.log('[authApi.login] Detected old format (JWT string only)');
-            accessToken = result.data;
+            console.log('[authApi.login] Detected legacy format (JWT string only)');
+            accessToken = result;
             
             try {
                 // Decode JWT to get user ID
                 const decodedToken = decodeJwt(accessToken);
                 console.log('[authApi.login] Decoded JWT:', decodedToken);
                 
-                if (!decodedToken || !decodedToken.id) {
-                    throw new Error('JWT missing id field');
+                const userId = decodedToken.id || decodedToken.sub;
+                if (!userId) {
+                    throw new Error('JWT missing id or sub field');
                 }
                 
+                // CRITICAL: We must store the token BEFORE fetching the profile, 
+                // because userApi.getProfile needs it in the headers.
+                await secureStorage.setTokens(accessToken, 'LEGACY_REFRESH_TOKEN');
+                
                 // Fetch user profile with the access token
-                console.log('[authApi.login] Fetching user profile for ID:', decodedToken.id);
+                console.log('[authApi.login] Fetching user profile for ID:', userId);
                 try {
-                    const userProfile = await userApi.getProfile(decodedToken.id);
+                    const userProfile = await userApi.getProfile(userId);
                     console.log('[authApi.login] User profile fetched:', userProfile);
                     
                     if (!userProfile) {
                         throw new Error('User profile is empty/undefined');
                     }
                     
-                    // No refresh token available in old format
-                    refreshToken = '';
-                    
+                    refreshToken = 'LEGACY_REFRESH_TOKEN';
                     user = {
                         id: userProfile.id,
                         email: userProfile.email,
@@ -136,14 +141,12 @@ export const authApi = {
                     };
                 } catch (profileErr: any) {
                     console.error('[authApi.login] Error fetching user profile:', profileErr.message);
-                    console.error('[authApi.login] Full error:', profileErr);
                     
-                    // If profile fetch fails, construct minimal user from JWT
-                    console.log('[authApi.login] Falling back to minimal user data from JWT');
-                    refreshToken = '';
+                    // Fallback to minimal user data from JWT
+                    refreshToken = 'LEGACY_REFRESH_TOKEN';
                     user = {
-                        id: decodedToken.id,
-                        email: 'unknown@email.com', // Will need to update from profile later
+                        id: userId,
+                        email: decodedToken.email || 'unknown@email.com',
                         firstName: 'User',
                         lastName: '',
                         emailVerified: false,
@@ -155,28 +158,33 @@ export const authApi = {
                 throw new Error(`Login error: ${decodeErr.message}`);
             }
         } else {
-            // New backend format: returns full object with accessToken, refreshToken, user
-            console.log('[authApi.login] Detected new format (full object)');
-            const { accessToken: at, refreshToken: rt, user: u } = result.data;
+            // New backend format: returns object with accessToken, refreshToken, user
+            console.log('[authApi.login] Detected standard format (object)');
+            const at = result.accessToken || result.token;
+            const rt = result.refreshToken || 'NO_REFRESH_TOKEN';
+            const u = result.user;
+
+            if (!at || !u) {
+                console.error('[authApi.login] Missing required fields in response:', result);
+                throw new Error('Invalid login response format');
+            }
+
             accessToken = at;
             refreshToken = rt;
             user = {
                 id: u.id,
                 email: u.email,
-                emailVerified: u.emailVerified,
-                firstName: u.firstName,
-                lastName: u.lastName,
+                emailVerified: u.emailVerified ?? true,
+                firstName: u.firstName || u.profile?.firstName,
+                lastName: u.lastName || u.profile?.lastName,
                 onboardingDone: u.onboardingDone ?? u.profile?.onboardingDone ?? false,
             };
+
+            // Store tokens in secure storage
+            await secureStorage.setTokens(accessToken, refreshToken);
         }
         
-        console.log('[authApi.login] Final tokens:');
-        console.log('  accessToken:', accessToken ? `${accessToken.substring(0, 20)}...` : 'NONE');
-        console.log('  refreshToken:', refreshToken ? `${refreshToken.substring(0, 20)}...` : 'NONE');
-        console.log('  user:', user);
-
-        // Store tokens in secure storage
-        await secureStorage.setTokens(accessToken, refreshToken || 'NO_REFRESH_TOKEN');
+        console.log('[authApi.login] Login complete. User:', user.email);
 
         return {
             accessToken,
@@ -187,17 +195,25 @@ export const authApi = {
 
     async logout(): Promise<void> {
         try {
-            await api.post('/auth/logout');
+            await api.post('/api/auth/logout');
         } finally {
             await secureStorage.clearTokens();
         }
     },
 
     async forgotPassword(email: string): Promise<void> {
-        await api.post('/auth/forgot-password', { email });
+        await api.post('/api/auth/forgot-password', { email });
+    },
+
+    async verifyOtp(email: string, code: string, type: 'EMAIL_VERIFICATION' | 'PASSWORD_RESET' = 'PASSWORD_RESET'): Promise<string> {
+        const result = await api.post<{ data: { token: string } }>('/api/auth/verify-otp', { email, code, type });
+        return result.data.token;
     },
 
     async resetPassword(token: string, newPassword: string): Promise<void> {
-        await api.put(`/auth/reset-password?token=${token}`, { newPassword });
+        // We use the temp token to authenticate the reset request
+        await api.post('/api/auth/reset-password', { password: newPassword }, {
+            headers: { Authorization: `Bearer ${token}` }
+        });
     },
 };

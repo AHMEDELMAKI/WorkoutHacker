@@ -52,6 +52,7 @@ export class AuthService {
                 privacySettings: { create: {} },
                 analytics: { create: {} },
             },
+            include: { profile: true },
         });
 
         const code = Math.floor(100000 + Math.random() * 900000).toString();

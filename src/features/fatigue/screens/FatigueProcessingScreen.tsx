@@ -1,3 +1,4 @@
+import Ionicons from 'react-native-vector-icons/Ionicons';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import React, { useEffect, useRef } from 'react';
 import { ScrollView, StatusBar, StyleSheet, Text, View } from 'react-native';
@@ -91,10 +92,35 @@ const FatigueProcessingScreen: React.FC<Props> = ({ navigation }) => {
     navigation.replace('FatigueResults');
   }, [navigation, result]);
 
+  const emgProgress = (emgReadingCount / requiredEmgReadings) * 100;
+  const velocityProgress = (velocityRepCount / requiredVelocityReps) * 100;
+
   return (
     <View style={styles.root}>
-      <StatusBar barStyle="light-content" backgroundColor={WT.colors.background} />
-      <SafeAreaView style={styles.safe} edges={['top']}>
+      <StatusBar barStyle="light-content" backgroundColor={WT.colors.header} />
+      
+      {/* HEADER SECTION */}
+      <View style={styles.header}>
+        <SafeAreaView edges={['top']}>
+          <View style={styles.headerInner}>
+            <Text style={styles.headerTitle}>Analyzing Sensors</Text>
+            <View style={styles.statusBadgeRow}>
+              <View style={[styles.statusBadge, bluetoothStatus === 'connected' ? styles.statusBadgeActive : styles.statusBadgeNeutral]}>
+                <Ionicons 
+                    name={bluetoothStatus === 'connected' ? "wifi" : "wifi-outline"} 
+                    size={10} 
+                    color={WT.colors.textLight} 
+                />
+                <Text style={styles.statusBadgeText}>
+                    WiFi: {getConnectionLabel(bluetoothStatus)}
+                </Text>
+              </View>
+            </View>
+          </View>
+        </SafeAreaView>
+      </View>
+
+      <SafeAreaView style={styles.safe} edges={['bottom']}>
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
@@ -129,42 +155,45 @@ const FatigueProcessingScreen: React.FC<Props> = ({ navigation }) => {
             </View>
           )}
 
-          <View style={styles.header}>
-            <Text style={styles.title}>Processing Sensor Data</Text>
-            <Text style={styles.subtitle}>
-              Heart rate is locked. We are now receiving EMG and IMU data to calculate muscle fatigue
-              and movement velocity. This step usually takes about 10 to 18 seconds.
-            </Text>
-          </View>
-
           <View style={styles.summaryCard}>
-            <Text style={styles.summaryLabel}>Locked heart rate</Text>
-            <Text style={styles.summaryValue}>
-              {capturedHeartRate ? `${capturedHeartRate.bpm} bpm` : '--'}
-            </Text>
-            <Text style={styles.summarySubtext}>
-              WiFi sensor: {getConnectionLabel(bluetoothStatus)}
-            </Text>
+            <View style={styles.summaryIconCircle}>
+                <Ionicons name="heart" size={24} color={WT.colors.danger} />
+            </View>
+            <View style={styles.summaryContent}>
+                <Text style={styles.summaryLabel}>Locked heart rate</Text>
+                <Text style={styles.summaryValue}>
+                {capturedHeartRate ? `${capturedHeartRate.bpm} BPM` : '--'}
+                </Text>
+            </View>
           </View>
 
           <View style={styles.metricGrid}>
             <View style={styles.metricCard}>
-              <Text style={styles.metricTitle}>EMG</Text>
+              <View style={styles.metricHeader}>
+                <Ionicons name="flash-outline" size={16} color={WT.colors.primary} />
+                <Text style={styles.metricTitle}>EMG Signal</Text>
+              </View>
               <Text style={styles.metricValue}>
                 {emgSample ? `${emgSample.rmsAmplitude.toFixed(1)} uV` : 'Waiting'}
               </Text>
               <Text style={styles.metricSubtext}>
                 {emgSample
-                  ? `${Math.round(emgSample.fatigueScore * 100)}% fatigue score`
-                  : 'Need muscle signal'}
+                  ? `${Math.round(emgSample.fatigueScore * 100)}% fatigue`
+                  : 'Hold muscle tension'}
               </Text>
+              <View style={styles.miniProgressBg}>
+                 <View style={[styles.miniProgressFill, { width: `${emgProgress}%` }]} />
+              </View>
               <Text style={styles.metricProgress}>
-                Windows: {emgReadingCount}/{requiredEmgReadings}
+                Samples: {emgReadingCount}/{requiredEmgReadings}
               </Text>
             </View>
 
             <View style={styles.metricCard}>
-              <Text style={styles.metricTitle}>Velocity</Text>
+              <View style={styles.metricHeader}>
+                <Ionicons name="speedometer-outline" size={16} color={WT.colors.primary} />
+                <Text style={styles.metricTitle}>Velocity</Text>
+              </View>
               <Text style={styles.metricValue}>
                 {velocityReading
                   ? `${velocityReading.velocityMps.toFixed(2)} m/s`
@@ -174,26 +203,42 @@ const FatigueProcessingScreen: React.FC<Props> = ({ navigation }) => {
               </Text>
               <Text style={styles.metricSubtext}>
                 {velocityReady
-                  ? `${velocityReading?.velocityLossPct.toFixed(1)}% loss after ${velocityReading?.repNumber} movements`
-                  : 'Make 3 smooth movements for a stable velocity-loss reading'}
+                  ? `${velocityReading?.velocityLossPct.toFixed(1)}% loss`
+                  : '3 smooth movements'}
               </Text>
+              <View style={styles.miniProgressBg}>
+                 <View style={[styles.miniProgressFill, { width: `${velocityProgress}%` }]} />
+              </View>
               <Text style={styles.metricProgress}>
-                Movements: {velocityRepCount}/{requiredVelocityReps}
+                Reps: {velocityRepCount}/{requiredVelocityReps}
               </Text>
             </View>
           </View>
 
           <View style={styles.instructionsCard}>
-            <Text style={styles.instructionsTitle}>What to do now</Text>
-            <Text style={styles.instructionsText}>1. Join the ESP32-Sensors WiFi network.</Text>
+            <View style={styles.cardHeader}>
+              <Ionicons name="book-outline" size={18} color={WT.colors.primary} />
+              <Text style={styles.instructionsTitle}>Guide</Text>
+            </View>
+            <Text style={styles.instructionsText}>1. Stay connected to ESP32 WiFi.</Text>
             <Text style={styles.instructionsText}>
-              2. Make 3 smooth movements so velocity loss can be estimated.
+              2. Perform smooth movements for velocity.
             </Text>
             <Text style={styles.instructionsText}>
-              3. Hold still for a moment while at least 2 EMG windows are captured.
+              3. Hold position for EMG windows.
             </Text>
-            <Text style={styles.instructionsTimer}>Elapsed: {processingElapsedSec}s</Text>
-            {sensorError ? <Text style={styles.errorText}>{sensorError}</Text> : null}
+            
+            <View style={styles.timerRow}>
+              <Ionicons name="time-outline" size={16} color={WT.colors.primary} />
+              <Text style={styles.instructionsTimer}>Elapsed: {processingElapsedSec}s</Text>
+            </View>
+            
+            {sensorError ? (
+                <View style={styles.errorBox}>
+                    <Ionicons name="alert-circle-outline" size={14} color={WT.colors.danger} />
+                    <Text style={styles.errorText}>{sensorError}</Text>
+                </View>
+            ) : null}
           </View>
 
           <View style={styles.footer}>
@@ -220,49 +265,91 @@ const styles = StyleSheet.create({
   safe: {
     flex: 1,
   },
+  // Header
+  header: {
+    backgroundColor: WT.colors.header,
+    paddingHorizontal: WT.spacing.lg,
+    paddingBottom: WT.spacing.lg,
+    borderBottomLeftRadius: WT.radius.lg,
+    borderBottomRightRadius: WT.radius.lg,
+    shadowColor: '#4A2878',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.2,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  headerInner: {
+    paddingTop: WT.spacing.md,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  headerTitle: {
+    fontSize: 24,
+    fontWeight: '800',
+    color: WT.colors.textLight,
+  },
+  statusBadgeRow: {
+    marginTop: 4,
+  },
+  statusBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 999,
+  },
+  statusBadgeActive: {
+    backgroundColor: 'rgba(105,195,109,0.3)',
+  },
+  statusBadgeNeutral: {
+    backgroundColor: 'rgba(255,255,255,0.15)',
+  },
+  statusBadgeText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: WT.colors.textLight,
+    textTransform: 'uppercase',
+  },
   scrollContent: {
     flexGrow: 1,
-  },
-  header: {
-    paddingHorizontal: WT.spacing.lg,
-    paddingTop: WT.spacing.md,
-    paddingBottom: WT.spacing.sm,
-  },
-  title: {
-    color: '#FFFFFF',
-    fontSize: 28,
-    fontWeight: '800',
-    marginBottom: 8,
-  },
-  subtitle: {
-    color: 'rgba(255,255,255,0.74)',
-    fontSize: 14,
-    lineHeight: 20,
+    paddingTop: WT.spacing.lg,
   },
   summaryCard: {
     marginHorizontal: WT.spacing.lg,
-    marginTop: WT.spacing.md,
     padding: WT.spacing.lg,
     borderRadius: WT.radius.md,
     backgroundColor: WT.colors.card,
     borderWidth: 1,
     borderColor: WT.colors.cardBorder,
-    gap: 6,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+    ...WT.shadow.card,
+  },
+  summaryIconCircle: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: 'rgba(229,107,107,0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  summaryContent: {
+    flex: 1,
   },
   summaryLabel: {
-    color: WT.colors.primaryDark,
-    fontSize: 12,
+    color: WT.colors.textMuted,
+    fontSize: 11,
     fontWeight: '800',
     textTransform: 'uppercase',
+    marginBottom: 2,
   },
   summaryValue: {
     color: WT.colors.textDark,
-    fontSize: 30,
+    fontSize: 24,
     fontWeight: '800',
-  },
-  summarySubtext: {
-    color: WT.colors.textMuted,
-    fontSize: 13,
   },
   metricGrid: {
     flexDirection: 'row',
@@ -277,28 +364,50 @@ const styles = StyleSheet.create({
     backgroundColor: WT.colors.card,
     borderWidth: 1,
     borderColor: WT.colors.cardBorder,
-    gap: 8,
+    gap: 4,
+    ...WT.shadow.card,
+  },
+  metricHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 4,
   },
   metricTitle: {
-    color: WT.colors.primaryDark,
-    fontSize: 12,
+    color: WT.colors.primary,
+    fontSize: 10,
     fontWeight: '800',
     textTransform: 'uppercase',
   },
   metricValue: {
     color: WT.colors.textDark,
-    fontSize: 22,
+    fontSize: 18,
     fontWeight: '800',
   },
   metricSubtext: {
     color: WT.colors.textMuted,
-    fontSize: 12,
-    lineHeight: 18,
+    fontSize: 11,
+    lineHeight: 14,
+    height: 28,
+  },
+  miniProgressBg: {
+    height: 4,
+    backgroundColor: 'rgba(0,0,0,0.05)',
+    borderRadius: 2,
+    marginTop: 8,
+    overflow: 'hidden',
+  },
+  miniProgressFill: {
+    height: '100%',
+    backgroundColor: WT.colors.primary,
+    borderRadius: 2,
   },
   metricProgress: {
     color: WT.colors.primary,
-    fontSize: 12,
-    fontWeight: '700',
+    fontSize: 10,
+    fontWeight: '800',
+    marginTop: 4,
+    textAlign: 'right',
   },
   instructionsCard: {
     marginHorizontal: WT.spacing.lg,
@@ -308,46 +417,72 @@ const styles = StyleSheet.create({
     backgroundColor: WT.colors.card,
     borderWidth: 1,
     borderColor: WT.colors.cardBorder,
-    gap: 10,
+    gap: 8,
+    ...WT.shadow.card,
+  },
+  cardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 4,
   },
   instructionsTitle: {
     color: WT.colors.textDark,
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '800',
   },
   instructionsText: {
     color: WT.colors.textMuted,
-    fontSize: 14,
-    lineHeight: 20,
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  timerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 8,
+    backgroundColor: 'rgba(0,0,0,0.02)',
+    padding: 8,
+    borderRadius: 8,
+    alignSelf: 'flex-start',
   },
   instructionsTimer: {
-    color: WT.colors.primaryDark,
-    fontSize: 13,
-    fontWeight: '700',
-    marginTop: 4,
+    color: WT.colors.primary,
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  errorBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: 'rgba(229,107,107,0.1)',
+    padding: 10,
+    borderRadius: 10,
+    marginTop: 8,
   },
   errorText: {
     color: WT.colors.danger,
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '600',
+    flex: 1,
   },
   loadingBridgeCard: {
     marginHorizontal: WT.spacing.lg,
-    marginTop: WT.spacing.md,
     padding: WT.spacing.md,
     borderRadius: WT.radius.md,
     backgroundColor: WT.colors.card,
     borderWidth: 1,
     borderColor: WT.colors.cardBorder,
+    marginBottom: WT.spacing.md,
   },
   loadingBridgeText: {
     color: WT.colors.textMuted,
     fontSize: 13,
   },
   footer: {
-    marginTop: 'auto',
     paddingHorizontal: WT.spacing.lg,
-    paddingVertical: WT.spacing.md,
+    paddingVertical: WT.spacing.lg,
+    marginTop: WT.spacing.md,
   },
 });
 

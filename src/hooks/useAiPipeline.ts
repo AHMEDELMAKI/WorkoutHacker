@@ -117,15 +117,16 @@ export const useAiPipeline = () => {
         let ghostSkeleton = null;
         let formScore = 100;
 
+        // Prioritize the user's selected exercise for the ghost guide
+        const activeExerciseName = currentExercise?.name?.toLowerCase() || exercise?.toLowerCase() || '';
+
         // Identify which ghost reference to use
         let ghostKey: keyof typeof GHOST_REFS | null = null;
-        if (exercise) {
-            if (exercise.includes('bicep')) ghostKey = 'bicep_curl';
-            else if (exercise.includes('shoulder_press')) ghostKey = 'shoulder_press';
-            else if (exercise.includes('front_raise')) ghostKey = 'front_raise';
-            else if (exercise.includes('lateral_raise')) ghostKey = 'lateral_raise';
-            else if (exercise.includes('triceps')) ghostKey = 'triceps_extension';
-        }
+        if (activeExerciseName.includes('bicep')) ghostKey = 'bicep_curl';
+        else if (activeExerciseName.includes('shoulder press')) ghostKey = 'shoulder_press';
+        else if (activeExerciseName.includes('front raise')) ghostKey = 'front_raise';
+        else if (activeExerciseName.includes('lateral raise')) ghostKey = 'lateral_raise';
+        else if (activeExerciseName.includes('tricep')) ghostKey = 'triceps_extension';
 
         if (ghostKey && GHOST_REFS[ghostKey]) {
             const res = GhostGuideCore.processLandmarksBufferWithReference(

@@ -33,7 +33,7 @@ const ForgotPasswordScreen: React.FC<Props> = ({ navigation }) => {
     setLoading(true);
     try {
       await authApi.forgotPassword(email);
-      setSent(true);
+      navigation.navigate('OTPVerification', { email });
     } catch (err: any) {
       setError(err.message || 'An error occurred');
     } finally {

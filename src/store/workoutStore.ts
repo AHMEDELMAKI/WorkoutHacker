@@ -5,13 +5,15 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { sessionApi, Workout, Exercise } from '../services/api/session.api';
+import { sessionApi, Workout, WorkoutSession, WorkoutSet } from '../services/api/session.api';
 
 interface WorkoutState {
     sessionId: string | null;
-    currentWorkout: Omit<Workout, 'sessionId' | 'date'> | null;
+    workoutTitle: string | null;
+    sessionType: 'cardio' | 'strength' | null;
     isActive: boolean;
-    currentExercise: Exercise | null;
+    currentExercise: WorkoutSet | null;
+    completedExercises: WorkoutSet[];
     elapsedSeconds: number;
     caloriesBurned: number;
 
@@ -23,6 +25,7 @@ interface WorkoutState {
         fatigue?: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL' 
     }) => Promise<void>;
     startExercise: (name: string) => void;
+    finishExercise: () => void;
     updateLiveMetrics: (reps: number, calories: number) => void;
     tick: () => void;
     reset: () => void;
@@ -32,40 +35,37 @@ export const useWorkoutStore = create<WorkoutState>()(
     persist(
         (set, get) => ({
             sessionId: null,
-            currentWorkout: null,
+            workoutTitle: null,
+            sessionType: null,
             isActive: false,
             currentExercise: null,
+            completedExercises: [],
             elapsedSeconds: 0,
             caloriesBurned: 0,
 
             startWorkout: async (type, title) => {
                 try {
-                    // Start session on backend
                     const session = await sessionApi.startSession('custom', title);
                     
                     set({
                         sessionId: session.id,
-                        currentWorkout: {
-                            title,
-                            sessionType: type,
-                            workoutInfo: {
-                                duration: 0,
-                                caloriesBurned: 0,
-                                exercises: [],
-                            },
-                        },
+                        workoutTitle: title,
+                        sessionType: type,
                         isActive: true,
                         elapsedSeconds: 0,
                         caloriesBurned: 0,
                         currentExercise: null,
+                        completedExercises: [],
                     });
                 } catch (error) {
                     console.error('[workoutStore] Failed to start session:', error);
-                    // Fallback to local-only if backend fails (optional: depending on requirements)
                     set({
                         isActive: true,
+                        workoutTitle: title,
+                        sessionType: type,
                         elapsedSeconds: 0,
                         caloriesBurned: 0,
+                        completedExercises: [],
                     });
                 }
             },
@@ -73,12 +73,21 @@ export const useWorkoutStore = create<WorkoutState>()(
             startExercise: (name) => {
                 set({
                     currentExercise: {
-                        name,
+                        exercise: name,
                         reps: 0,
-                        sets: 1,
-                        weight: 0,
+                        weightKg: 0,
                     },
                 });
+            },
+
+            finishExercise: () => {
+                const { currentExercise, completedExercises } = get();
+                if (currentExercise) {
+                    set({
+                        completedExercises: [...completedExercises, currentExercise],
+                        currentExercise: null,
+                    });
+                }
             },
 
             updateLiveMetrics: (reps, calories) => {
@@ -97,8 +106,12 @@ export const useWorkoutStore = create<WorkoutState>()(
             },
 
             completeWorkout: async (summary) => {
-                const { sessionId, elapsedSeconds, caloriesBurned } = get();
+                const { sessionId, elapsedSeconds, caloriesBurned, completedExercises, currentExercise } = get();
                 
+                // Ensure the final exercise is collected
+                const allExercises = [...completedExercises];
+                if (currentExercise) allExercises.push(currentExercise);
+
                 if (sessionId) {
                     try {
                         await sessionApi.completeSession(sessionId, {
@@ -107,6 +120,7 @@ export const useWorkoutStore = create<WorkoutState>()(
                             formScore: summary.formScore,
                             overallFatigue: summary.fatigue,
                             notes: summary.notes,
+                            exercises: allExercises,
                         });
                     } catch (error) {
                         console.error('[workoutStore] Failed to complete session on backend:', error);
@@ -116,8 +130,10 @@ export const useWorkoutStore = create<WorkoutState>()(
                 set({ 
                     isActive: false, 
                     sessionId: null,
-                    currentWorkout: null, 
+                    workoutTitle: null,
+                    sessionType: null,
                     currentExercise: null,
+                    completedExercises: [],
                     elapsedSeconds: 0,
                     caloriesBurned: 0 
                 });
@@ -125,9 +141,11 @@ export const useWorkoutStore = create<WorkoutState>()(
 
             reset: () => set({
                 sessionId: null,
-                currentWorkout: null,
+                workoutTitle: null,
+                sessionType: null,
                 isActive: false,
                 currentExercise: null,
+                completedExercises: [],
                 elapsedSeconds: 0,
                 caloriesBurned: 0,
             }),

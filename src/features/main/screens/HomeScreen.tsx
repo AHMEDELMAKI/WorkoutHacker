@@ -65,11 +65,19 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
         try {
             setLoading(true);
             const [sum, sess] = await Promise.all([
-                analyticsApi.getSummary(),
-                sessionApi.getSessions(),
+                analyticsApi.getSummary().catch(() => null),
+                sessionApi.getSessions().catch(() => null),
             ]);
-            setSummary(sum);
-            setRecentSessions(sess.sessions || []);
+            
+            if (sum) setSummary(sum);
+            
+            // Handle both { sessions: [] } and direct [] formats
+            if (sess) {
+                const sessionsList = Array.isArray(sess) ? sess : (sess.sessions || []);
+                setRecentSessions(sessionsList);
+            } else {
+                setRecentSessions([]);
+            }
         } catch (error) {
             console.error('[HomeScreen] Failed to fetch live data:', error);
         } finally {

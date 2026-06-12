@@ -8,9 +8,8 @@ const VCamera = Camera as any;
 import { subscribeVoiceAction } from '../../../services/voiceActionBus';
 import { speak } from '../../../services/ttsService';
 import { useWorkoutStore } from '../../../store/workoutStore';
-import { useAiStore } from '../../../store/aiStore';
+import { useAiStore, PoseLandmark } from '../../../store/aiStore';
 import { useAiPipeline } from '../../../hooks/useAiPipeline';
-import { useFocusEffect } from '@react-navigation/native';
 import {
   Alert,
   Animated,
@@ -31,278 +30,7 @@ import PrimaryWorkoutButton from '../components/PrimaryWorkoutButton';
 
 type Props = NativeStackScreenProps<WorkoutStackParamList, 'Tracking'>;
 
-const TrackingScreen: React.FC<Props> = ({ route, navigation }) => {
-  const { exercise } = route.params;
-
-  // Zustand Stores
-  const isActive = useWorkoutStore(s => s.isActive);
-  const startWorkout = useWorkoutStore(s => s.startWorkout);
-  const completeWorkout = useWorkoutStore(s => s.completeWorkout);
-  const tick = useWorkoutStore(s => s.tick);
-  const elapsedSeconds = useWorkoutStore(s => s.elapsedSeconds);
-  const caloriesBurned = useWorkoutStore(s => s.caloriesBurned);
-
-  // AI Store access
-  const resetAi = useAiStore(s => s.reset);
-  const landmarks = useAiStore(s => s.landmarks);
-  const ghostSkeleton = useAiStore(s => s.guideOverlay);
-  const deviationScore = useAiStore(s => s.deviationScore);
-  const detectedExercise = useAiStore(s => s.detectedExercise);
-
-  const [isPaused, setIsPaused] = useState(false);
-  const [cameraEnabled, setCameraEnabled] = useState(false);
-  const [isCalibrating, setIsCalibrating] = useState(true);
-  const pulseAnim = useRef(new Animated.Value(1)).current;
-
-  // AI Pipeline Hook
-  const { frameProcessor } = useAiPipeline();
-  const device = useCameraDevice('front');
-  const { hasPermission, requestPermission } = useCameraPermission();
-
-  // On mount: prepare session
-  useEffect(() => {
-    startPulse();
-    const timer = setInterval(() => {
-      if (!isPaused && !isCalibrating) tick();
-    }, 1000);
-
-    return () => {
-      clearInterval(timer);
-      resetAi();
-    };
-  }, [exercise]);
-
-  // Handle Calibration -> Start
-  useEffect(() => {
-    if (isCalibrating && cameraEnabled && landmarks && deviationScore < 0.15) {
-      // User is aligned, start workout
-      const startSession = async () => {
-        setIsCalibrating(false);
-        await startWorkout(exercise.targetMuscles[0] || 'GENERAL', exercise.name);
-        void speak('Calibration complete. Starting workout.');
-      };
-      startSession();
-    }
-  }, [landmarks, deviationScore, isCalibrating, cameraEnabled]);
-
-  // Handle voice actions
-  useEffect(() => {
-    const unsubscribe = subscribeVoiceAction((action) => {
-      if (action === 'end_workout') {
-        void speak('Ending workout');
-        void endWorkout();
-      }
-      if (action === 'start_workout' && isPaused) {
-        void speak('Resuming workout');
-        togglePause();
-      }
-      if (action === 'pause_workout' && !isPaused) {
-        void speak('Pausing workout');
-        togglePause();
-      }
-    });
-    return unsubscribe;
-  }, [isPaused]);
-
-  const startPulse = () => {
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulseAnim, { toValue: 1.06, duration: 700, useNativeDriver: true }),
-        Animated.timing(pulseAnim, { toValue: 1, duration: 700, useNativeDriver: true }),
-      ])
-    ).start();
-  };
-
-  const togglePause = () => setIsPaused(!isPaused);
-
-  const endWorkout = async () => {
-    const { formScore, fatigueLevel } = useAiStore.getState();
-    try {
-      await completeWorkout({
-        formScore,
-        fatigue: fatigueLevel,
-      });
-      navigation.navigate('WorkoutComplete', { workoutType: exercise.targetMuscles });
-    } catch (error) {
-      console.error('[TrackingScreen] Failed to complete workout:', error);
-      Alert.alert('Error', 'Failed to save workout session. Please try again.');
-    }
-  };
-
-  const toggleCamera = async () => {
-    if (cameraEnabled) {
-      setCameraEnabled(false);
-      return;
-    }
-    if (!hasPermission) {
-      const granted = await requestPermission();
-      if (!granted) {
-        Alert.alert('Permission Denied', 'Camera access is required for AI tracking.');
-        return;
-      }
-    }
-    setCameraEnabled(true);
-  };
-
-  const formatTime = (s: number) => {
-    const mins = Math.floor(s / 60);
-    const secs = s % 60;
-    return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
-  };
-
-  return (
-    <View style={styles.root}>
-      <StatusBar barStyle="light-content" backgroundColor="#1A0E2A" />
-      <SafeAreaView edges={['top']} style={styles.safe}>
-        <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-          <View style={styles.cameraBox}>
-            {cameraEnabled && device ? (
-              <View style={styles.cameraInnerContainer}>
-                <VCamera
-                  style={StyleSheet.absoluteFill}
-                  device={device}
-                  isActive={!isPaused}
-                  frameProcessor={frameProcessor}
-                />
-                
-                {/* Calibration Overlay */}
-                {isCalibrating && (
-                  <View style={styles.calibrationOverlay}>
-                    <Ionicons name="scan-outline" size={80} color={deviationScore < 0.2 ? '#69C36D' : '#FFF'} />
-                    <Text style={styles.calibrationText}>
-                      {deviationScore < 0.2 ? 'Hold position...' : 'Align your body with the camera'}
-                    </Text>
-                  </View>
-                )}
-
-                {/* Ghost Skeleton Overlay */}
-                {ghostSkeleton && !isPaused && (
-                  <View style={styles.ghostContainer} pointerEvents="none">
-                    <Svg width="100%" height="100%" viewBox="0 0 1 1">
-                      {ghostSkeleton.map((p, i) => {
-                        if (!p || (p as any).visibility < 0.5) return null;
-                        return (
-                          <Circle
-                            key={i}
-                            cx={(p as any).x}
-                            cy={(p as any).y}
-                            r="0.015"
-                            fill="rgba(255, 255, 255, 0.4)"
-                          />
-                        );
-                      })}
-                    </Svg>
-                  </View>
-                )}
-
-                <View style={styles.metricsOverlay} pointerEvents="none">
-                  <OverlayMetric label="Reps" selector={s => s.reps} />
-                  <OverlayMetric label="Tempo" selector={s => s.tempo || 'Analyzing...'} />
-                  <OverlayMetric label="Form" selector={s => s.formScore} suffix="%" />
-                  <OverlayMetric label="Fatigue" selector={s => s.fatigueLevel} />
-                  <OverlayMetric label="Type" selector={s => (s.detectedExercise || 'Detecting...').replace('_', ' ')} />
-                </View>
-
-                {/* Prominent Overlay HUDs */}
-                <View style={styles.tempoHud} pointerEvents="none">
-                  <TempoOverlay />
-                </View>
-                <View style={styles.repOverlay} pointerEvents="none">
-                  <RepOverlay />
-                </View>
-
-                <TouchableOpacity
-                  style={styles.floatingCameraButton}
-                  onPress={toggleCamera}
-                >
-                  <Ionicons name="camera-reverse" size={16} color="white" />
-                  <Text style={styles.floatingButtonText}>Turn Off Camera</Text>
-                </TouchableOpacity>
-              </View>
-            ) : (
-              <View style={styles.placeholderInner}>
-                <Animated.View style={[styles.cameraInner, { transform: [{ scale: pulseAnim }] }]}>
-                  <Ionicons
-                    name="body-outline"
-                    size={56}
-                    color={isPaused ? '#888' : 'rgba(255,255,255,0.7)'}
-                  />
-                </Animated.View>
-                <Text style={styles.cameraTitle}>{isPaused ? 'Paused' : 'Tracking Active'}</Text>
-                <Text style={styles.cameraSub}>{formatTime(elapsedSeconds)} elapsed</Text>
-                <View style={styles.sensorBadge}>
-                  <View style={[styles.sensorDot, { backgroundColor: isPaused ? '#E56B6B' : '#69C36D' }]} />
-                  <Text style={styles.sensorText}>{isPaused ? 'Paused' : 'AI Processing'}</Text>
-                </View>
-                <TouchableOpacity style={styles.inlineEnableBtn} onPress={toggleCamera}>
-                  <Text style={styles.inlineEnableText}>Enable Camera Engine</Text>
-                </TouchableOpacity>
-              </View>
-            )}
-          </View>
-
-          <Text style={styles.exLabel}>{exercise.name}</Text>
-
-          <View style={styles.statsCard}>
-            <View style={styles.repSection}>
-              <RepDisplay />
-              <Text style={styles.repHint}>REPS</Text>
-            </View>
-            <View style={styles.statsRight}>
-              <MotivationDisplay />
-              <Text style={styles.timeVal}>{formatTime(elapsedSeconds)}</Text>
-            </View>
-          </View>
-
-          <View style={styles.metricsCard}>
-            <Text style={styles.metricsTitle}>Real-time Analysis</Text>
-            <LiveAnalysis />
-          </View>
-
-          <View style={styles.btnRow}>
-            <TouchableOpacity
-              onPress={togglePause}
-              style={[styles.pauseBtn, isPaused && styles.resumeBtn]}
-              activeOpacity={0.85}
-            >
-              <Ionicons
-                name={isPaused ? 'play' : 'pause'}
-                size={20}
-                color={WT.colors.textLight}
-              />
-              <Text style={styles.pauseLabel}>{isPaused ? 'Resume' : 'Pause'}</Text>
-            </TouchableOpacity>
-
-            <PrimaryWorkoutButton
-              label="Finish"
-              variant="white"
-              style={styles.endBtn}
-              onPress={endWorkout}
-            />
-          </View>
-
-          <View style={styles.ghostTempoRow}>
-            <TouchableOpacity
-              style={styles.ghostTempoBtn}
-              onPress={() => navigation.navigate('GhostGuideTest')}
-              activeOpacity={0.9}
-            >
-              <Text style={styles.ghostTempoBtnText}>Ghost Guide</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.ghostTempoBtnAlt}
-              onPress={() => navigation.navigate('TempoClassifierTest')}
-              activeOpacity={0.9}
-            >
-              <Text style={styles.ghostTempoBtnText}>Tempo</Text>
-            </TouchableOpacity>
-          </View>
-        </ScrollView>
-      </SafeAreaView>
-    </View>
-  );
-};
+// ─── Styles ──────────────────────────────────────────────
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#1A0E2A' },
@@ -574,12 +302,18 @@ const styles = StyleSheet.create({
   },
 });
 
-const OverlayMetric: React.FC<{ label: string; selector: (s: any) => any; suffix?: string }> = React.memo(({ label, selector, suffix = '' }) => {
+// ─── Sub-Components ──────────────────────────────────────
+
+const OverlayMetric: React.FC<{ 
+  label: string; 
+  selector: (s: any) => string | number | null; 
+  suffix?: string 
+}> = React.memo(({ label, selector, suffix = '' }) => {
   const value = useAiStore(selector);
   return (
     <View style={styles.overlayCard}>
       <Text style={styles.overlayLabel}>{label}</Text>
-      <Text style={styles.overlayValue}>{value}{suffix}</Text>
+      <Text style={styles.overlayValue}>{value ?? '--'}{suffix}</Text>
     </View>
   );
 });
@@ -631,5 +365,306 @@ const LiveAnalysis = React.memo(() => {
     </>
   );
 });
+
+const RepDisplay = React.memo(() => {
+  const reps = useAiStore(s => s.reps);
+  return <Text style={styles.repCount}>{reps}</Text>;
+});
+
+const MotivationDisplay = React.memo(() => {
+  const formScore = useAiStore(s => s.formScore);
+  const reps = useAiStore(s => s.reps);
+  
+  let message = "Keep it up!";
+  if (reps === 0) message = "Get ready!";
+  else if (formScore > 90) message = "Perfect form!";
+  else if (formScore > 75) message = "Great job!";
+  else if (formScore > 50) message = "Keep pushing!";
+  else message = "Watch your form!";
+  
+  return <Text style={styles.motivation}>{message}</Text>;
+});
+
+// ─── Main Screen ──────────────────────────────────────────
+
+const TrackingScreen: React.FC<Props> = ({ route, navigation }) => {
+  const params = route.params || {};
+  const exercise = params.exercise;
+
+  // Zustand Stores
+  const startWorkout = useWorkoutStore(s => s.startWorkout);
+  const completeWorkout = useWorkoutStore(s => s.completeWorkout);
+  const startExercise = useWorkoutStore(s => s.startExercise);
+  const tick = useWorkoutStore(s => s.tick);
+  const elapsedSeconds = useWorkoutStore(s => s.elapsedSeconds);
+
+  // AI Store access
+  const resetAi = useAiStore(s => s.reset);
+  const landmarks = useAiStore(s => s.landmarks);
+  const ghostSkeleton = useAiStore(s => s.guideOverlay);
+  const deviationScore = useAiStore(s => s.deviationScore);
+
+  const [isPaused, setIsPaused] = useState(false);
+  const [cameraEnabled, setCameraEnabled] = useState(false);
+  const [isCalibrating, setIsCalibrating] = useState(true);
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+
+  // AI Pipeline Hook
+  const { frameProcessor } = useAiPipeline();
+  const device = useCameraDevice('front');
+  const { hasPermission, requestPermission } = useCameraPermission();
+
+  // On mount: prepare session
+  useEffect(() => {
+    if (!exercise) {
+        Alert.alert('Error', 'No exercise data provided.', [{ text: 'Go Back', onPress: () => navigation.goBack() }]);
+        return;
+    }
+    
+    startPulse();
+    const timer = setInterval(() => {
+      if (!isPaused && !isCalibrating) tick();
+    }, 1000);
+
+    return () => {
+      clearInterval(timer);
+      resetAi();
+    };
+  }, [exercise]);
+
+  // Handle Calibration -> Start
+  useEffect(() => {
+    if (!exercise) return;
+    if (isCalibrating && cameraEnabled && landmarks && deviationScore < 0.15) {
+      // User is aligned, start workout
+      const startSession = async () => {
+        setIsCalibrating(false);
+        // Corrected parameters: startWorkout expects 'strength' | 'cardio'
+        await startWorkout('strength', exercise.name);
+        startExercise(exercise.name);
+        void speak('Calibration complete. Starting workout.');
+      };
+      startSession();
+    }
+  }, [landmarks, deviationScore, isCalibrating, cameraEnabled, exercise]);
+
+  // Handle voice actions
+  useEffect(() => {
+    const unsubscribe = subscribeVoiceAction((action) => {
+      if (action === 'end_workout') {
+        void speak('Ending workout');
+        void endWorkout();
+      }
+      if (action === 'start_workout' && isPaused) {
+        void speak('Resuming workout');
+        togglePause();
+      }
+      if (action === 'pause_workout' && !isPaused) {
+        void speak('Pausing workout');
+        togglePause();
+      }
+    });
+    return unsubscribe;
+  }, [isPaused]);
+
+  const startPulse = () => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, { toValue: 1.06, duration: 700, useNativeDriver: true }),
+        Animated.timing(pulseAnim, { toValue: 1, duration: 700, useNativeDriver: true }),
+      ])
+    ).start();
+  };
+
+  const togglePause = () => setIsPaused(!isPaused);
+
+  const endWorkout = async () => {
+    const { formScore, fatigueLevel } = useAiStore.getState();
+    try {
+      await completeWorkout({
+        formScore,
+        fatigue: fatigueLevel,
+      });
+      navigation.navigate('WorkoutComplete', { workoutType: exercise.targetMuscles });
+    } catch (error) {
+      console.error('[TrackingScreen] Failed to complete workout:', error);
+      Alert.alert('Error', 'Failed to save workout session. Please try again.');
+    }
+  };
+
+  const toggleCamera = async () => {
+    if (cameraEnabled) {
+      setCameraEnabled(false);
+      return;
+    }
+    if (!hasPermission) {
+      const granted = await requestPermission();
+      if (!granted) {
+        Alert.alert('Permission Denied', 'Camera access is required for AI tracking.');
+        return;
+      }
+    }
+    setCameraEnabled(true);
+  };
+
+  const formatTime = (s: number) => {
+    const mins = Math.floor(s / 60);
+    const secs = s % 60;
+    return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
+  };
+
+  return (
+    <View style={styles.root}>
+      <StatusBar barStyle="light-content" backgroundColor="#1A0E2A" />
+      <SafeAreaView edges={['top']} style={styles.safe}>
+        <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+          <View style={styles.cameraBox}>
+            {cameraEnabled && device ? (
+              <View style={styles.cameraInnerContainer}>
+                <VCamera
+                  style={StyleSheet.absoluteFill}
+                  device={device}
+                  isActive={!isPaused}
+                  frameProcessor={frameProcessor}
+                />
+                
+                {/* Calibration Overlay */}
+                {isCalibrating && (
+                  <View style={styles.calibrationOverlay}>
+                    <Ionicons name="scan-outline" size={80} color={deviationScore < 0.2 ? '#69C36D' : '#FFF'} />
+                    <Text style={styles.calibrationText}>
+                      {deviationScore < 0.2 ? 'Hold position...' : 'Align your body with the camera'}
+                    </Text>
+                  </View>
+                )}
+
+                {/* Ghost Skeleton Overlay */}
+                {ghostSkeleton && !isPaused && (
+                  <View style={styles.ghostContainer} pointerEvents="none">
+                    <Svg width="100%" height="100%" viewBox="0 0 1 1">
+                      {ghostSkeleton.map((p, i) => {
+                        if (!p || (p.visibility ?? 1) < 0.5) return null;
+                        return (
+                          <Circle
+                            key={i}
+                            cx={p.x}
+                            cy={p.y}
+                            r="0.015"
+                            fill="rgba(255, 255, 255, 0.4)"
+                          />
+                        );
+                      })}
+                    </Svg>
+                  </View>
+                )}
+
+                <View style={styles.metricsOverlay} pointerEvents="none">
+                  <OverlayMetric label="Reps" selector={s => s.reps} />
+                  <OverlayMetric label="Tempo" selector={s => s.tempo || 'Analyzing...'} />
+                  <OverlayMetric label="Form" selector={s => s.formScore} suffix="%" />
+                  <OverlayMetric label="Fatigue" selector={s => s.fatigueLevel} />
+                  <OverlayMetric label="Type" selector={s => (s.detectedExercise || 'Detecting...').replace('_', ' ')} />
+                </View>
+
+                {/* Prominent Overlay HUDs */}
+                <View style={styles.tempoHud} pointerEvents="none">
+                  <TempoOverlay />
+                </View>
+                <View style={styles.repOverlay} pointerEvents="none">
+                  <RepOverlay />
+                </View>
+
+                <TouchableOpacity
+                  style={styles.floatingCameraButton}
+                  onPress={toggleCamera}
+                >
+                  <Ionicons name="camera-reverse" size={16} color="white" />
+                  <Text style={styles.floatingButtonText}>Turn Off Camera</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <View style={styles.placeholderInner}>
+                <Animated.View style={[styles.cameraInner, { transform: [{ scale: pulseAnim }] }]}>
+                  <Ionicons
+                    name="body-outline"
+                    size={56}
+                    color={isPaused ? '#888' : 'rgba(255,255,255,0.7)'}
+                  />
+                </Animated.View>
+                <Text style={styles.cameraTitle}>{isPaused ? 'Paused' : 'Tracking Active'}</Text>
+                <Text style={styles.cameraSub}>{formatTime(elapsedSeconds)} elapsed</Text>
+                <View style={styles.sensorBadge}>
+                  <View style={[styles.sensorDot, { backgroundColor: isPaused ? '#E56B6B' : '#69C36D' }]} />
+                  <Text style={styles.sensorText}>{isPaused ? 'Paused' : 'AI Processing'}</Text>
+                </View>
+                <TouchableOpacity style={styles.inlineEnableBtn} onPress={toggleCamera}>
+                  <Text style={styles.inlineEnableText}>Enable Camera Engine</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
+
+          <Text style={styles.exLabel}>{exercise.name}</Text>
+
+          <View style={styles.statsCard}>
+            <View style={styles.repSection}>
+              <RepDisplay />
+              <Text style={styles.repHint}>REPS</Text>
+            </View>
+            <View style={styles.statsRight}>
+              <MotivationDisplay />
+              <Text style={styles.timeVal}>{formatTime(elapsedSeconds)}</Text>
+            </View>
+          </View>
+
+          <View style={styles.metricsCard}>
+            <Text style={styles.metricsTitle}>Real-time Analysis</Text>
+            <LiveAnalysis />
+          </View>
+
+          <View style={styles.btnRow}>
+            <TouchableOpacity
+              onPress={togglePause}
+              style={[styles.pauseBtn, isPaused && styles.resumeBtn]}
+              activeOpacity={0.85}
+            >
+              <Ionicons
+                name={isPaused ? 'play' : 'pause'}
+                size={20}
+                color={WT.colors.textLight}
+              />
+              <Text style={styles.pauseLabel}>{isPaused ? 'Resume' : 'Pause'}</Text>
+            </TouchableOpacity>
+
+            <PrimaryWorkoutButton
+              label="Finish"
+              variant="white"
+              style={styles.endBtn}
+              onPress={endWorkout}
+            />
+          </View>
+
+          <View style={styles.ghostTempoRow}>
+            <TouchableOpacity
+              style={styles.ghostTempoBtn}
+              onPress={() => navigation.navigate('GhostGuideTest')}
+              activeOpacity={0.9}
+            >
+              <Text style={styles.ghostTempoBtnText}>Ghost Guide</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.ghostTempoBtnAlt}
+              onPress={() => navigation.navigate('TempoClassifierTest')}
+              activeOpacity={0.9}
+            >
+              <Text style={styles.ghostTempoBtnText}>Tempo</Text>
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
+      </SafeAreaView>
+    </View>
+  );
+};
 
 export default TrackingScreen;

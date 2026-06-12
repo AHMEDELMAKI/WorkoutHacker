@@ -12,16 +12,25 @@ export interface Exercise {
     weight: number;
 }
 
+/**
+ * Aligned with BACKEND_REQUIREMENTS.md
+ */
+export interface WorkoutSet {
+    exercise: string;
+    reps: number;
+    weightKg: number;
+}
+
 export interface Workout {
-    sessionId: string;
+    id: string;
     title: string;
-    sessionType: 'cardio' | 'strength';
-    date: string;
-    workoutInfo: {
-        duration: number;
-        caloriesBurned: number;
-        exercises: Exercise[];
-    };
+    type: string;
+    date: string; // ISO
+    durationMin: number;
+    calories: number;
+    sets: WorkoutSet[];
+    formScore?: number;
+    notes?: string;
 }
 
 const getUserId = () => {
@@ -33,12 +42,12 @@ const getUserId = () => {
 };
 
 /**
- * Modern Session API matching the backend implementation.
+ * Modern Session API matching the backend implementation and spec.
  */
 export interface WorkoutSession {
     id: string;
     userId: string;
-    workoutType: string;
+    workoutId: string;
     title: string;
     startedAt: string;
     completedAt: string | null;
@@ -47,6 +56,7 @@ export interface WorkoutSession {
     formScore: number | null;
     overallFatigue: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL' | null;
     notes: string | null;
+    exercises?: WorkoutSet[];
 }
 
 export interface AiMetricPayload {
@@ -60,6 +70,8 @@ export interface AiMetricPayload {
     confidenceScore?: number;
 }
 
+const unwrap = (res: any) => (res && res.data !== undefined ? res.data : res);
+
 export const sessionApi = {
     /**
      * Start a new workout session.
@@ -67,12 +79,13 @@ export const sessionApi = {
      * @param title - Optional title for the session
      */
     async startSession(workoutId: string, title?: string): Promise<WorkoutSession> {
-        const result = await api.post<{ data: WorkoutSession }>('/api/sessions/start', { workoutId, title });
-        return result.data;
+        const response = await api.post<any>('/sessions/start', { workoutId, title });
+        return unwrap(response);
     },
 
     /**
      * Complete an active session.
+     * Aligned with BACKEND_REQUIREMENTS.md data shape.
      */
     async completeSession(
         sessionId: string,
@@ -82,28 +95,29 @@ export const sessionApi = {
             formScore?: number;
             overallFatigue?: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
             notes?: string;
+            exercises?: WorkoutSet[];
         },
     ): Promise<WorkoutSession> {
-        const result = await api.post<{ data: WorkoutSession }>(`/api/sessions/${sessionId}/complete`, data);
-        return result.data;
+        const response = await api.post<any>(`/sessions/${sessionId}/complete`, data);
+        return unwrap(response);
     },
 
     async logAiMetric(sessionId: string, metric: AiMetricPayload): Promise<void> {
-        await api.post(`/api/sessions/${sessionId}/ai-metrics`, metric);
+        await api.post(`/sessions/${sessionId}/ai-metrics`, metric);
     },
 
     async logAiMetricsBatch(sessionId: string, metrics: AiMetricPayload[]): Promise<void> {
-        await api.post(`/api/sessions/${sessionId}/ai-metrics/batch`, { metrics });
+        await api.post(`/sessions/${sessionId}/ai-metrics/batch`, { metrics });
     },
 
-    async getSessions(): Promise<WorkoutSession[]> {
-        const result = await api.get<{ data: WorkoutSession[] }>('/api/sessions');
-        return result.data;
+    async getSessions(): Promise<any> {
+        const response = await api.get<any>('/sessions');
+        return unwrap(response);
     },
 
     async getSession(sessionId: string): Promise<WorkoutSession> {
-        const result = await api.get<{ data: WorkoutSession }>(`/api/sessions/${sessionId}`);
-        return result.data;
+        const response = await api.get<any>(`/sessions/${sessionId}`);
+        return unwrap(response);
     },
 };
 
@@ -114,31 +128,31 @@ export const sessionApi = {
 export const workoutApi = {
     async createWorkout(workout: Omit<Workout, 'sessionId' | 'date'>): Promise<Workout> {
         const userId = getUserId();
-        const result = await api.post<{ data: Workout }>(`/api/users/${userId}/workouts`, workout);
-        return result.data;
+        const response = await api.post<any>(`/users/${userId}/workouts`, workout);
+        return unwrap(response);
     },
 
     async getWorkouts(range?: 'this-week'): Promise<Workout[]> {
         const userId = getUserId();
-        const url = range ? `/api/users/${userId}/workouts?range=${range}` : `/api/users/${userId}/workouts`;
-        const result = await api.get<{ data: Workout[] }>(url);
-        return result.data;
+        const url = range ? `/users/${userId}/workouts?range=${range}` : `/users/${userId}/workouts`;
+        const response = await api.get<any>(url);
+        return unwrap(response);
     },
 
-    async getWorkout(sessionId: string): Promise<Workout> {
+    async getWorkout(workoutId: string): Promise<Workout> {
         const userId = getUserId();
-        const result = await api.get<{ data: Workout }>(`/api/users/${userId}/workouts/${sessionId}`);
-        return result.data;
+        const response = await api.get<any>(`/users/${userId}/workouts/${workoutId}`);
+        return unwrap(response);
     },
 
-    async updateWorkout(sessionId: string, data: Partial<Workout>): Promise<Workout> {
+    async updateWorkout(workoutId: string, data: Partial<Workout>): Promise<Workout> {
         const userId = getUserId();
-        const result = await api.patch<{ data: Workout }>(`/api/users/${userId}/workouts/${sessionId}`, data);
-        return result.data;
+        const response = await api.patch<any>(`/users/${userId}/workouts/${workoutId}`, data);
+        return unwrap(response);
     },
 
-    async deleteWorkout(sessionId: string): Promise<void> {
+    async deleteWorkout(workoutId: string): Promise<void> {
         const userId = getUserId();
-        await api.delete(`/api/users/${userId}/workouts/${sessionId}`);
+        await api.delete(`/users/${userId}/workouts/${workoutId}`);
     },
 };

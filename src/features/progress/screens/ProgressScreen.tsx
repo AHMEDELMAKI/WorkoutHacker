@@ -189,25 +189,27 @@ const ProgressScreen: React.FC<Props> = ({ navigation }) => {
         try {
             setLoading(true);
             const [sum, week, strk, records, trend] = await Promise.all([
-                analyticsApi.getSummary(),
-                analyticsApi.getWeekly(),
-                analyticsApi.getStreaks(),
-                analyticsApi.getPersonalRecords(),
-                analyticsApi.getFormTrend(),
+                analyticsApi.getSummary().catch(() => null),
+                analyticsApi.getWeekly().catch(() => null),
+                analyticsApi.getStreaks().catch(() => null),
+                analyticsApi.getPersonalRecords().catch(() => []),
+                analyticsApi.getFormTrend().catch(() => []),
             ]);
 
-            setSummary(sum);
-            setWeekly(week);
-            setStreaks(strk);
-            setFormTrend(trend);
+            if (sum) setSummary(sum);
+            if (week) setWeekly(week);
+            if (strk) setStreaks(strk);
+            setFormTrend(trend || []);
 
             const colors = ['#7C3AED', '#0EA5E9', '#F59E0B', '#10B981'];
             const icons = ['🏋️', '🏃', '⚡', '💪'];
-            const uiPrs: UI_PR[] = records.map((r, i) => ({
+            
+            const validRecords = Array.isArray(records) ? records : [];
+            const uiPrs: UI_PR[] = validRecords.map((r, i) => ({
                 id: `pr-${i}`,
                 exercise: r.exerciseName,
                 value: `${r.totalReps} Reps`,
-                date: new Date(r.workoutSession.startedAt).toLocaleDateString(),
+                date: r.workoutSession?.startedAt ? new Date(r.workoutSession.startedAt).toLocaleDateString() : 'N/A',
                 icon: icons[i % icons.length],
                 color: colors[i % colors.length],
             }));

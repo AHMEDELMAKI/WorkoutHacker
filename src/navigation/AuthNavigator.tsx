@@ -3,6 +3,7 @@ import React from 'react';
 import ForgotPasswordScreen from '../features/auth/screens/ForgotPasswordScreen';
 import LoginScreen from '../features/auth/screens/LoginScreen';
 import RegisterScreen from '../features/auth/screens/RegisterScreen';
+import OTPVerificationScreen from '../features/auth/screens/OTPVerificationScreen';
 import ResetPasswordScreen from '../features/auth/screens/ResetPasswordScreen';
 import { AuthStackParamList } from './types';
 
@@ -20,6 +21,7 @@ const AuthNavigator = () => {
             <Stack.Screen name="Login" component={LoginScreen} />
             <Stack.Screen name="Register" component={RegisterScreen} />
             <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
+            <Stack.Screen name="OTPVerification" component={OTPVerificationScreen} />
             <Stack.Screen name="ResetPassword" component={ResetPasswordScreen} />
         </Stack.Navigator>
     );

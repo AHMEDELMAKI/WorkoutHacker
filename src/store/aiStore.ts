@@ -22,7 +22,7 @@ interface AiState {
     isProcessing: boolean;
 
     // Ghost Guide state
-    guideOverlay: string | null;
+    guideOverlay: PoseLandmark[] | null;
     deviationScore: number;
 
     // Actions
@@ -35,7 +35,7 @@ interface AiState {
         tempoQuality?: number;
         exercise?: string;
     }) => void;
-    setGuideOverlay: (overlay: string | null, deviation?: number) => void;
+    setGuideOverlay: (overlay: PoseLandmark[] | null, deviation?: number) => void;
     setProcessing: (val: boolean) => void;
     reset: () => void;
 }

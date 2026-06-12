@@ -8,6 +8,7 @@ declare module 'react-native-ghost-guide' {
     currentCheckpointIndex: number;
     isAligned: boolean;
     ghostSkeleton?: GhostSkeleton;
+    deviationScore: number;
   };
 
   export const GhostGuideCore: {
@@ -16,7 +17,7 @@ declare module 'react-native-ghost-guide' {
     processLandmarksBufferWithReference: (
       buffer: number[],
       frames: any[],
-      opts: { applyReferencePose: boolean; frameIndex: number }
+      opts: { applyReferencePose: boolean; frameIndex?: number }
     ) => ProcessResult | null;
   };
 }

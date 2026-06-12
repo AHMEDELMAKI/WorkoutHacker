@@ -46,13 +46,13 @@ app.get('/health', (_req, res) => {
 });
 
 // ─── Routes ─────────────────────────────────────────────
-app.use('/api/auth', authRouter);
-app.use('/api/users', userRouter);
-app.use('/api/workouts', workoutRouter);
-app.use('/api/sessions', sessionRouter);
-app.use('/api/analytics', analyticsRouter);
-app.use('/api/notifications', notificationRouter);
-app.use('/api/workout', workoutApiRouter);
+app.use(['/api/auth', '/auth'], authRouter);
+app.use(['/api/users', '/users'], userRouter);
+app.use(['/api/workouts', '/workouts'], workoutRouter);
+app.use(['/api/sessions', '/sessions'], sessionRouter);
+app.use(['/api/analytics', '/analytics'], analyticsRouter);
+app.use(['/api/notifications', '/notifications'], notificationRouter);
+app.use(['/api/workout', '/workout'], workoutApiRouter);
 
 
 
