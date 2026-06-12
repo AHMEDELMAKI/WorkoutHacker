@@ -30,7 +30,7 @@ The repository is organized into several key modules:
 *   **Framework:** React Native (TypeScript)
 *   **State Management:** Zustand
 *   **Navigation:** React Navigation
-*   **Sensors:** Vision Camera (PPG), Bluetooth LE (EMG), Accelerometer/IMU.
+*   **Sensors:** Vision Camera (PPG), Wifi LE (EMG), Accelerometer/IMU.
 *   **ML Integration:** Custom JSI modules for Random Forest and Pose Landmark detection.
 
 ### Backend
