@@ -479,13 +479,29 @@ const TrackingScreen: React.FC<Props> = ({ route, navigation }) => {
   const togglePause = () => setIsPaused(!isPaused);
 
   const endWorkout = async () => {
-    const { formScore, fatigueLevel } = useAiStore.getState();
+    const { formScore, fatigueLevel, reps } = useAiStore.getState();
+    const { elapsedSeconds, caloriesBurned, completedExercises, currentExercise } = useWorkoutStore.getState();
+    
+    // Calculate total reps and sets across session
+    const allExercises = [...completedExercises];
+    if (currentExercise) allExercises.push(currentExercise);
+    const totalReps = allExercises.reduce((acc, curr) => acc + curr.reps, 0) + reps;
+    const setsCompleted = allExercises.length || 1;
+
     try {
       await completeWorkout({
         formScore,
-        fatigue: fatigueLevel,
+        fatigue: fatigueLevel as any,
       });
-      navigation.navigate('WorkoutComplete', { workoutType: exercise.targetMuscles });
+      navigation.navigate('WorkoutComplete', { 
+          workoutType: exercise.targetMuscles,
+          duration: elapsedSeconds,
+          calories: caloriesBurned,
+          reps: totalReps,
+          sets: setsCompleted,
+          score: formScore,
+          fatigue: fatigueLevel
+      });
     } catch (error) {
       console.error('[TrackingScreen] Failed to complete workout:', error);
       Alert.alert('Error', 'Failed to save workout session. Please try again.');

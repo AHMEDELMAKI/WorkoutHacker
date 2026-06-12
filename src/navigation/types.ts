@@ -114,7 +114,15 @@ export type WorkoutStackParamList = {
     ExerciseDetails: { exercise: ExerciseType };
     Tracking: { exercise: ExerciseType };
     HeartRateFatigue: { workoutType: string };
-    WorkoutComplete: { workoutType: string };
+    WorkoutComplete: { 
+        workoutType: string;
+        duration?: number;
+        calories?: number;
+        reps?: number;
+        sets?: number;
+        score?: number;
+        fatigue?: string;
+    };
 };
 
 // Screen Props helpers

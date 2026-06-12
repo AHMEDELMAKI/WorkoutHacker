@@ -5,6 +5,7 @@ import {
   Platform,
   ScrollView,
   StyleSheet,
+  TouchableOpacity,
   View,
   StatusBar,
 } from 'react-native';
@@ -266,19 +267,31 @@ const TempoClassifierTestScreen: React.FC = () => {
         </View>
 
         <View style={styles.controls}>
-          <AppButton
-            title="Start Session"
+          <TouchableOpacity
+            style={[
+              styles.actionButton,
+              sessionActive ? styles.actionButtonInactive : styles.actionButtonActive
+            ]}
             onPress={onStart}
             disabled={sessionActive}
-            style={styles.actionButton}
-          />
-          <AppButton
-            title="Stop Session"
+            activeOpacity={0.85}
+          >
+            <AppText style={styles.actionButtonText}>Start Session  →</AppText>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              styles.secondaryBtn,
+              sessionActive ? styles.stopButtonActive : styles.stopButtonInactive
+            ]}
             onPress={onStop}
             disabled={!sessionActive}
-            variant="outline"
-            style={styles.actionButton}
-          />
+            activeOpacity={0.85}
+          >
+            <AppText style={[
+              styles.secondaryBtnText,
+              sessionActive && styles.stopButtonTextActive
+            ]}>Stop Session</AppText>
+          </TouchableOpacity>
         </View>
       </ScrollView>
     </View>
@@ -382,12 +395,57 @@ const styles = StyleSheet.create({
     padding: WT.spacing.xl,
   },
   controls: {
-    flexDirection: 'row',
-    gap: WT.spacing.md,
+    gap: WT.spacing.sm,
     marginBottom: WT.spacing.xl,
   },
   actionButton: {
-    flex: 1,
+    borderRadius: WT.radius.xl,
+    height: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  actionButtonActive: {
+    backgroundColor: WT.colors.primary,
+    shadowColor: '#4A2878',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
+    elevation: 6,
+  },
+  actionButtonInactive: {
+    backgroundColor: WT.colors.primary,
+    opacity: 0.3,
+    elevation: 0,
+    shadowOpacity: 0,
+  },
+  actionButtonText: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: WT.colors.textLight,
+  },
+  secondaryBtn: {
+    borderRadius: WT.radius.xl,
+    height: 46,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+  },
+  stopButtonActive: {
+    backgroundColor: '#4B5563', // Gray
+    borderColor: '#4B5563',
+  },
+  stopButtonInactive: {
+    borderColor: WT.colors.primary,
+    backgroundColor: 'rgba(140,92,196,0.08)',
+    opacity: 0.3,
+  },
+  stopButtonTextActive: {
+    color: '#FFFFFF',
+  },
+  secondaryBtnText: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: WT.colors.primary,
   },
 });
 

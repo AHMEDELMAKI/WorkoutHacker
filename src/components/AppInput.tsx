@@ -5,7 +5,8 @@ import {
     StyleSheet,
     TouchableOpacity,
     TextInputProps,
-    ViewStyle
+    ViewStyle,
+    TextStyle
 } from 'react-native';
 import AppText from './AppText';
 import { Colors, Spacing, FontSizes, FontWeights } from '../theme';
@@ -15,6 +16,8 @@ interface AppInputProps extends TextInputProps {
     error?: string;
     isPassword?: boolean;
     containerStyle?: ViewStyle;
+    inputContainerStyle?: ViewStyle;
+    labelStyle?: TextStyle;
 }
 
 const AppInput: React.FC<AppInputProps> = ({
@@ -22,6 +25,8 @@ const AppInput: React.FC<AppInputProps> = ({
     error,
     isPassword,
     containerStyle,
+    inputContainerStyle,
+    labelStyle,
     ...props
 }) => {
     const [isFocused, setIsFocused] = useState(false);
@@ -30,13 +35,14 @@ const AppInput: React.FC<AppInputProps> = ({
     return (
         <View style={[styles.container, containerStyle]}>
             {label && (
-                <AppText variant="bodySmall" color={Colors.textSecondary} style={styles.label}>
+                <AppText variant="bodySmall" color={Colors.textSecondary} style={[styles.label, labelStyle]}>
                     {label}
                 </AppText>
             )}
             <View
                 style={[
                     styles.inputContainer,
+                    inputContainerStyle,
                     isFocused && styles.inputFocused,
                     !!error && styles.inputError,
                 ]}

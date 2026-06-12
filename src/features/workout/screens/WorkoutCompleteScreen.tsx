@@ -20,7 +20,15 @@ import PerformanceBar from '../components/PerformanceBar';
 type Props = NativeStackScreenProps<WorkoutStackParamList, 'WorkoutComplete'>;
 
 const WorkoutCompleteScreen: React.FC<Props> = ({ route, navigation }) => {
-    const { workoutType } = route.params;
+    const { 
+        workoutType, 
+        duration = 0, 
+        calories = 0, 
+        reps = 0, 
+        sets = 0, 
+        score = 0,
+        fatigue = 'LOW'
+    } = route.params;
 
     const fadeAnim = useRef(new Animated.Value(0)).current;
     const scaleAnim = useRef(new Animated.Value(0.85)).current;
@@ -34,7 +42,7 @@ const WorkoutCompleteScreen: React.FC<Props> = ({ route, navigation }) => {
         // Announce completion via TTS (non-blocking)
         void (async () => {
             try {
-                await speak('Workout complete. Great job today!');
+                await speak(`Workout complete. You performed ${reps} reps with ${score}% form accuracy. Great job!`);
             } catch (e) {
                 // ignore TTS errors — non-critical
             }
@@ -52,23 +60,33 @@ const WorkoutCompleteScreen: React.FC<Props> = ({ route, navigation }) => {
     const openFatigueCheck = () => {
         navigation.navigate('FatigueCheck' as any);
     };
+
     const muscleFocusGroups = workoutType
         .split(',')
         .map((s: string) => s.trim())
         .filter((s: string) => s.length > 0);
 
+    // Dynamically generate coach suggestions
+    const getSuggestions = () => {
+        const s = [];
+        if (score < 70) s.push('Focus on a slower tempo to improve your form accuracy.');
+        else s.push('Your form is looking solid! Focus on maintaining it as you increase intensity.');
+
+        if (fatigue === 'HIGH' || fatigue === 'CRITICAL') s.push('High fatigue detected. Ensure you prioritize recovery before your next heavy session.');
+        else s.push('Energy levels seem good. Consider slightly increasing volume in your next session.');
+
+        s.push('Keep your core braced throughout every rep for better stability.');
+        return s;
+    };
+
     const session = {
-        duration: '32 min',
-        totalReps: '48',
-        setsCompleted: '12',
-        calories: '280 kcal',
+        duration: `${Math.floor(duration / 60)} min`,
+        totalReps: reps.toString(),
+        setsCompleted: sets.toString(),
+        calories: `${Math.round(calories)} kcal`,
         muscleFocus: muscleFocusGroups.slice(0, 3),
-        score: 84,
-        suggestions: [
-            'Slow down your tempo for better muscle activation.',
-            'Keep your core braced throughout every rep.',
-            'Increase weight by 5% next session to keep progressing.',
-        ],
+        score: score,
+        suggestions: getSuggestions(),
     };
 
     // Deterministic values instead of Math.random to avoid re-render issues

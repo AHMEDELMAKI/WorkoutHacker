@@ -280,35 +280,68 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
                         <View style={styles.modalHeader}>
                             <Text style={styles.modalTitle}>Edit Personal Info</Text>
                             <TouchableOpacity onPress={() => setEditPersonalInfoVisible(false)}>
-                                <Ionicons name="close" size={24} color={PPT.textPrimary} />
+                                <Ionicons name="close" size={24} color={PPT.textWhite} />
                             </TouchableOpacity>
                         </View>
 
-                        <ScrollView style={styles.modalBody}>
+                        <ScrollView style={styles.modalBody} showsVerticalScrollIndicator={false}>
                             <AppInput
                                 label="First Name"
                                 value={personalInfoData.firstName}
                                 onChangeText={(text) => setPersonalInfoData({ ...personalInfoData, firstName: text })}
                                 placeholder="Enter first name"
+                                inputContainerStyle={styles.inputStyle}
+                                labelStyle={styles.inputLabel}
                             />
                             <AppInput
                                 label="Last Name"
                                 value={personalInfoData.lastName}
                                 onChangeText={(text) => setPersonalInfoData({ ...personalInfoData, lastName: text })}
                                 placeholder="Enter last name"
+                                inputContainerStyle={styles.inputStyle}
+                                labelStyle={styles.inputLabel}
                             />
-                            <AppInput
-                                label="Gender"
-                                value={personalInfoData.gender}
-                                onChangeText={(text) => setPersonalInfoData({ ...personalInfoData, gender: text })}
-                                placeholder="e.g., male, female, other"
-                            />
+                            
+                            <View style={styles.inputContainer}>
+                                <Text style={[styles.inputLabel, { marginBottom: S.xs }]}>Gender</Text>
+                                <View style={styles.genderRow}>
+                                    <TouchableOpacity
+                                        style={[styles.genderBtn, personalInfoData.gender === 'male' && styles.genderBtnActive]}
+                                        onPress={() => setPersonalInfoData({ ...personalInfoData, gender: 'male' })}
+                                    >
+                                        <Ionicons 
+                                            name="male" 
+                                            size={18} 
+                                            color={personalInfoData.gender === 'male' ? '#FFFFFF' : PPT.accent} 
+                                        />
+                                        <Text style={[styles.genderBtnText, personalInfoData.gender === 'male' && styles.genderBtnTextActive]}>
+                                            Male
+                                        </Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity
+                                        style={[styles.genderBtn, personalInfoData.gender === 'female' && styles.genderBtnActive]}
+                                        onPress={() => setPersonalInfoData({ ...personalInfoData, gender: 'female' })}
+                                    >
+                                        <Ionicons 
+                                            name="female" 
+                                            size={18} 
+                                            color={personalInfoData.gender === 'female' ? '#FFFFFF' : PPT.accent} 
+                                        />
+                                        <Text style={[styles.genderBtnText, personalInfoData.gender === 'female' && styles.genderBtnTextActive]}>
+                                            Female
+                                        </Text>
+                                    </TouchableOpacity>
+                                </View>
+                            </View>
+
                             <AppInput
                                 label="Age"
                                 value={personalInfoData.age}
                                 onChangeText={(text) => setPersonalInfoData({ ...personalInfoData, age: text })}
                                 placeholder="Enter age"
                                 keyboardType="numeric"
+                                inputContainerStyle={styles.inputStyle}
+                                labelStyle={styles.inputLabel}
                             />
                             <AppInput
                                 label="Height (cm)"
@@ -316,6 +349,8 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
                                 onChangeText={(text) => setPersonalInfoData({ ...personalInfoData, height: text })}
                                 placeholder="Enter height"
                                 keyboardType="numeric"
+                                inputContainerStyle={styles.inputStyle}
+                                labelStyle={styles.inputLabel}
                             />
                             <AppInput
                                 label="Weight (kg)"
@@ -323,6 +358,8 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
                                 onChangeText={(text) => setPersonalInfoData({ ...personalInfoData, weight: text })}
                                 placeholder="Enter weight"
                                 keyboardType="numeric"
+                                inputContainerStyle={styles.inputStyle}
+                                labelStyle={styles.inputLabel}
                             />
                         </ScrollView>
 
@@ -331,10 +368,13 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
                                 title="Save Profile"
                                 onPress={handleSavePersonalInfo}
                                 loading={loading}
+                                style={styles.saveBtn}
                             />
                             <AppButton
                                 title="Cancel"
                                 onPress={() => setEditPersonalInfoVisible(false)}
+                                variant="outline"
+                                style={styles.cancelBtn}
                             />
                         </View>
                     </View>
@@ -353,22 +393,26 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
                         <View style={styles.modalHeader}>
                             <Text style={styles.modalTitle}>Edit Workout Preferences</Text>
                             <TouchableOpacity onPress={() => setEditModalVisible(false)}>
-                                <Ionicons name="close" size={24} color={PPT.textPrimary} />
+                                <Ionicons name="close" size={24} color={PPT.textWhite} />
                             </TouchableOpacity>
                         </View>
 
-                        <ScrollView style={styles.modalBody}>
+                        <ScrollView style={styles.modalBody} showsVerticalScrollIndicator={false}>
                             <AppInput
                                 label="Primary Goal"
                                 value={editData.workoutPrimaryGoal}
                                 onChangeText={(text) => setEditData({ ...editData, workoutPrimaryGoal: text })}
                                 placeholder="e.g., hypertrophy, strength, endurance"
+                                inputContainerStyle={styles.inputStyle}
+                                labelStyle={styles.inputLabel}
                             />
                             <AppInput
                                 label="Training Level"
                                 value={editData.workoutTrainingLevel}
                                 onChangeText={(text) => setEditData({ ...editData, workoutTrainingLevel: text })}
                                 placeholder="e.g., beginner, intermediate, advanced"
+                                inputContainerStyle={styles.inputStyle}
+                                labelStyle={styles.inputLabel}
                             />
                             <AppInput
                                 label="Days Per Week"
@@ -376,6 +420,8 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
                                 onChangeText={(text) => setEditData({ ...editData, workoutDaysPerWeek: text })}
                                 placeholder="e.g., 3, 4, 5"
                                 keyboardType="numeric"
+                                inputContainerStyle={styles.inputStyle}
+                                labelStyle={styles.inputLabel}
                             />
                         </ScrollView>
 
@@ -384,10 +430,13 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
                                 title="Save Preferences"
                                 onPress={handleSaveWorkoutPreferences}
                                 loading={loading}
+                                style={styles.saveBtn}
                             />
                             <AppButton
                                 title="Cancel"
                                 onPress={() => setEditModalVisible(false)}
+                                variant="outline"
+                                style={styles.cancelBtn}
                             />
                         </View>
                     </View>
@@ -475,31 +524,93 @@ const styles = StyleSheet.create({
     modalContent: {
         flex: 1,
         backgroundColor: PPT.bgLight,
-        paddingHorizontal: S.lg,
     },
     modalHeader: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        paddingVertical: S.md,
-        borderBottomWidth: 1,
-        borderBottomColor: PPT.cardBorder,
+        paddingVertical: S.lg,
+        paddingHorizontal: S.lg,
+        backgroundColor: PPT.bgPrimary,
+        borderBottomLeftRadius: R.lg,
+        borderBottomRightRadius: R.lg,
+        shadowColor: PPT.bgPrimary,
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.2,
+        shadowRadius: 8,
+        elevation: 6,
     },
     modalTitle: {
         fontSize: F.heading,
-        fontWeight: '700',
-        color: PPT.textPrimary,
+        fontWeight: '800',
+        color: PPT.textWhite,
     },
     modalBody: {
         flex: 1,
         paddingVertical: S.lg,
+        paddingHorizontal: S.lg,
     },
     modalFooter: {
         paddingBottom: S.lg,
-        borderTopWidth: 1,
-        borderTopColor: PPT.cardBorder,
+        paddingHorizontal: S.lg,
         paddingTop: S.md,
         gap: S.sm,
+    },
+    inputStyle: {
+        backgroundColor: '#FFFFFF',
+        borderColor: PPT.cardBorder,
+        borderRadius: R.md,
+        color: PPT.textPrimary,
+    },
+    inputLabel: {
+        color: PPT.textSecondary,
+        fontWeight: '700',
+    },
+    inputContainer: {
+        marginBottom: S.lg,
+    },
+    genderRow: {
+        flexDirection: 'row',
+        gap: S.md,
+    },
+    genderBtn: {
+        flex: 1,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        height: 48,
+        borderRadius: R.md,
+        borderWidth: 1,
+        borderColor: PPT.accent,
+        backgroundColor: '#FFFFFF',
+        gap: S.xs,
+    },
+    genderBtnActive: {
+        backgroundColor: PPT.accent,
+    },
+    genderBtnText: {
+        fontSize: F.body,
+        fontWeight: '700',
+        color: PPT.accent,
+    },
+    genderBtnTextActive: {
+        color: '#FFFFFF',
+    },
+    saveBtn: {
+        height: 50,
+        borderRadius: R.full,
+        backgroundColor: PPT.accent,
+        shadowColor: PPT.bgPrimary,
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 8,
+        elevation: 4,
+    },
+    cancelBtn: {
+        height: 50,
+        borderRadius: R.full,
+        borderColor: PPT.accent,
+        backgroundColor: 'transparent',
     },
 });
 
