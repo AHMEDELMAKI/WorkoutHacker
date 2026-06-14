@@ -406,7 +406,7 @@ const TrackingScreen: React.FC<Props> = ({ route, navigation }) => {
 
   const [isPaused, setIsPaused] = useState(false);
   const [cameraEnabled, setCameraEnabled] = useState(false);
-  const [isCalibrating, setIsCalibrating] = useState(true);
+  const [isCalibrating, setIsCalibrating] = useState(false); // TODO: fix hold-position gate before re-enabling
   const pulseAnim = useRef(new Animated.Value(1)).current;
 
   // AI Pipeline Hook
@@ -432,21 +432,21 @@ const TrackingScreen: React.FC<Props> = ({ route, navigation }) => {
     };
   }, [exercise]);
 
-  // Handle Calibration -> Start
-  useEffect(() => {
-    if (!exercise) return;
-    if (isCalibrating && cameraEnabled && landmarks && deviationScore < 0.15) {
-      // User is aligned, start workout
-      const startSession = async () => {
-        setIsCalibrating(false);
-        // Corrected parameters: startWorkout expects 'strength' | 'cardio'
-        await startWorkout('strength', exercise.name);
-        startExercise(exercise.name);
-        void speak('Calibration complete. Starting workout.');
-      };
-      startSession();
-    }
-  }, [landmarks, deviationScore, isCalibrating, cameraEnabled, exercise]);
+  // TODO: fix hold-position gate before re-enabling
+  // // Handle Calibration -> Start
+  // useEffect(() => {
+  //   if (!exercise) return;
+  //   if (isCalibrating && cameraEnabled && landmarks && deviationScore < 0.15) {
+  //     // User is aligned, start workout
+  //     const startSession = async () => {
+  //       setIsCalibrating(false);
+  //       await startWorkout('strength', exercise.name);
+  //       startExercise(exercise.name);
+  //       void speak('Calibration complete. Starting workout.');
+  //     };
+  //     startSession();
+  //   }
+  // }, [landmarks, deviationScore, isCalibrating, cameraEnabled, exercise]);
 
   // Handle voice actions
   useEffect(() => {
