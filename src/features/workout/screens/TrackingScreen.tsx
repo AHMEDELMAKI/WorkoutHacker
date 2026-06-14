@@ -1,14 +1,14 @@
 import React, { useEffect, useRef, useState } from 'react';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { Camera, useCameraDevice, useCameraPermission } from 'react-native-vision-camera';
-
-const VCamera = Camera as any;
+import { PoseLandmarksView } from 'react-native-pose-landmarks';
+import { callback } from 'react-native-nitro-modules';
+import { Dimensions } from 'react-native';
 
 import { subscribeVoiceAction } from '../../../services/voiceActionBus';
 import { speak } from '../../../services/ttsService';
 import { useWorkoutStore } from '../../../store/workoutStore';
-import { useAiStore, PoseLandmark } from '../../../store/aiStore';
+import { useAiStore } from '../../../store/aiStore';
 import { useAiPipeline } from '../../../hooks/useAiPipeline';
 import {
   Alert,
@@ -30,6 +30,10 @@ import PrimaryWorkoutButton from '../components/PrimaryWorkoutButton';
 
 type Props = NativeStackScreenProps<WorkoutStackParamList, 'Tracking'>;
 
+const CAMERA_BOX_HEIGHT = 320;
+const LANDMARK_COUNT = 33;
+const VALUES_PER_LANDMARK = 4;
+
 // ─── Styles ──────────────────────────────────────────────
 
 const styles = StyleSheet.create({
@@ -41,7 +45,7 @@ const styles = StyleSheet.create({
     borderRadius: WT.radius.md,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.14)',
-    height: 320,
+    height: CAMERA_BOX_HEIGHT,
     width: '100%',
     overflow: 'hidden',
     marginBottom: WT.spacing.lg,
@@ -117,21 +121,6 @@ const styles = StyleSheet.create({
   metricValue: { fontSize: 14, fontWeight: '700' },
   btnRow: { flexDirection: 'row', gap: WT.spacing.md, alignItems: 'center' },
 
-  calibrationOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 20,
-    zIndex: 10,
-  },
-  calibrationText: {
-    color: '#FFF',
-    fontSize: 18,
-    fontWeight: '800',
-    textAlign: 'center',
-    paddingHorizontal: 40,
-  },
   ghostContainer: {
     ...StyleSheet.absoluteFillObject,
     zIndex: 5,
@@ -181,19 +170,26 @@ const styles = StyleSheet.create({
   resumeBtn: { backgroundColor: WT.colors.success + 'BB', borderColor: WT.colors.success },
   pauseLabel: { fontSize: 14, fontWeight: '700', color: WT.colors.textLight },
   endBtn: { flex: 1 },
-  floatingCameraButton: {
-    position: 'absolute',
-    bottom: 16,
-    right: 16,
-    backgroundColor: 'rgba(140, 92, 196, 0.8)',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 20,
+  overlayCard: {
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 12,
+    marginBottom: 8,
     flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    gap: 6,
   },
-  floatingButtonText: { color: '#FFF', fontSize: 12, fontWeight: '700' },
+  overlayLabel: {
+    fontSize: 10,
+    color: 'rgba(255,255,255,0.7)',
+    fontWeight: '600',
+  },
+  overlayValue: {
+    fontSize: 10,
+    color: '#FFF',
+    fontWeight: '800',
+  },
   metricsOverlay: {
     position: 'absolute',
     top: 16,
@@ -256,26 +252,6 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.8)',
     marginTop: -2,
   },
-  overlayCard: {
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 12,
-    marginBottom: 8,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  overlayLabel: {
-    fontSize: 10,
-    color: 'rgba(255,255,255,0.7)',
-    fontWeight: '600',
-  },
-  overlayValue: {
-    fontSize: 10,
-    color: '#FFF',
-    fontWeight: '800',
-  },
   inlineEnableBtn: {
     marginTop: 10,
     backgroundColor: 'rgba(255,255,255,0.1)',
@@ -286,20 +262,19 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255,255,255,0.2)',
   },
   inlineEnableText: { color: '#FFF', fontSize: 12, fontWeight: '600' },
-  errorContainer: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.8)',
+  floatingCameraButton: {
+    position: 'absolute',
+    bottom: 16,
+    right: 16,
+    backgroundColor: 'rgba(140, 92, 196, 0.8)',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 20,
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    padding: 20,
-    gap: 12,
+    gap: 6,
   },
-  errorText: {
-    color: '#FFF',
-    fontSize: 14,
-    textAlign: 'center',
-    fontWeight: '600',
-  },
+  floatingButtonText: { color: '#FFF', fontSize: 12, fontWeight: '700' },
 });
 
 // ─── Sub-Components ──────────────────────────────────────
@@ -345,16 +320,20 @@ const TempoOverlay = React.memo(() => {
 });
 
 const LiveAnalysis = React.memo(() => {
+  const reps = useAiStore(s => s.reps);
   const formScore = useAiStore(s => s.formScore);
   const tempo = useAiStore(s => s.tempo);
   const tempoQuality = useAiStore(s => s.tempoQuality);
+  const detectedExercise = useAiStore(s => s.detectedExercise);
   const caloriesBurned = useWorkoutStore(s => s.caloriesBurned);
 
   return (
     <>
       {[
+        { label: 'Reps', value: `${reps}`, color: WT.colors.primary },
+        { label: 'Exercise', value: (detectedExercise || 'Detecting...').replace(/_/g, ' '), color: WT.colors.primary },
         { label: 'Form Score', value: `${formScore}%`, color: formScore > 80 ? WT.colors.success : WT.colors.warning },
-        { label: 'Tempo', value: tempo ? `${tempo} (${tempoQuality}%)` : 'Analyzing...', color: WT.colors.primary },
+        { label: 'Tempo', value: tempo ? `${tempo}` : 'Analyzing...', color: WT.colors.primary },
         { label: 'Burned', value: `${Math.round(caloriesBurned)} kcal`, color: WT.colors.danger },
       ].map(metric => (
         <View key={metric.label} style={styles.metricRow}>
@@ -390,6 +369,7 @@ const MotivationDisplay = React.memo(() => {
 const TrackingScreen: React.FC<Props> = ({ route, navigation }) => {
   const params = route.params || {};
   const exercise = params.exercise;
+  const cameraWidth = Dimensions.get('window').width - WT.spacing.lg * 2;
 
   // Zustand Stores
   const startWorkout = useWorkoutStore(s => s.startWorkout);
@@ -400,19 +380,16 @@ const TrackingScreen: React.FC<Props> = ({ route, navigation }) => {
 
   // AI Store access
   const resetAi = useAiStore(s => s.reset);
-  const landmarks = useAiStore(s => s.landmarks);
+  const setLandmarks = useAiStore(s => s.setLandmarks);
   const ghostSkeleton = useAiStore(s => s.guideOverlay);
-  const deviationScore = useAiStore(s => s.deviationScore);
 
   const [isPaused, setIsPaused] = useState(false);
   const [cameraEnabled, setCameraEnabled] = useState(false);
-  const [isCalibrating, setIsCalibrating] = useState(false); // TODO: fix hold-position gate before re-enabling
   const pulseAnim = useRef(new Animated.Value(1)).current;
+  const poseLandmarksRef = useRef<any>(null);
 
   // AI Pipeline Hook
-  const { frameProcessor } = useAiPipeline();
-  const device = useCameraDevice('front');
-  const { hasPermission, requestPermission } = useCameraPermission();
+  const { processBuffer } = useAiPipeline();
 
   // On mount: prepare session
   useEffect(() => {
@@ -423,7 +400,7 @@ const TrackingScreen: React.FC<Props> = ({ route, navigation }) => {
     
     startPulse();
     const timer = setInterval(() => {
-      if (!isPaused && !isCalibrating) tick();
+      if (!isPaused) tick();
     }, 1000);
 
     return () => {
@@ -432,21 +409,45 @@ const TrackingScreen: React.FC<Props> = ({ route, navigation }) => {
     };
   }, [exercise]);
 
-  // TODO: fix hold-position gate before re-enabling
-  // // Handle Calibration -> Start
-  // useEffect(() => {
-  //   if (!exercise) return;
-  //   if (isCalibrating && cameraEnabled && landmarks && deviationScore < 0.15) {
-  //     // User is aligned, start workout
-  //     const startSession = async () => {
-  //       setIsCalibrating(false);
-  //       await startWorkout('strength', exercise.name);
-  //       startExercise(exercise.name);
-  //       void speak('Calibration complete. Starting workout.');
-  //     };
-  //     startSession();
-  //   }
-  // }, [landmarks, deviationScore, isCalibrating, cameraEnabled, exercise]);
+  // Start workout when camera is enabled
+  useEffect(() => {
+    if (!cameraEnabled || !exercise) return;
+    const init = async () => {
+      await startWorkout('strength', exercise.name);
+      startExercise(exercise.name);
+    };
+    init();
+  }, [cameraEnabled, exercise]);
+
+  // Polling loop: reads landmarks from PoseLandmarksView and runs AI inference
+  useEffect(() => {
+    if (!cameraEnabled) return;
+
+    const interval = setInterval(() => {
+      const ref = poseLandmarksRef.current;
+      if (!ref) return;
+
+      const buffer = ref.getLandmarksBuffer();
+      if (!buffer || buffer.length !== LANDMARK_COUNT * VALUES_PER_LANDMARK) return;
+
+      // Store landmarks for overlay usage
+      const landmarks = [];
+      for (let i = 0; i < LANDMARK_COUNT; i++) {
+        landmarks.push({
+          x: buffer[i * VALUES_PER_LANDMARK],
+          y: buffer[i * VALUES_PER_LANDMARK + 1],
+          z: buffer[i * VALUES_PER_LANDMARK + 2],
+          visibility: buffer[i * VALUES_PER_LANDMARK + 3],
+        });
+      }
+      setLandmarks(landmarks);
+
+      // Run AI inference
+      processBuffer(buffer);
+    }, 66);
+
+    return () => clearInterval(interval);
+  }, [cameraEnabled]);
 
   // Handle voice actions
   useEffect(() => {
@@ -482,7 +483,6 @@ const TrackingScreen: React.FC<Props> = ({ route, navigation }) => {
     const { formScore, fatigueLevel, reps } = useAiStore.getState();
     const { elapsedSeconds, caloriesBurned, completedExercises, currentExercise } = useWorkoutStore.getState();
     
-    // Calculate total reps and sets across session
     const allExercises = [...completedExercises];
     if (currentExercise) allExercises.push(currentExercise);
     const totalReps = allExercises.reduce((acc, curr) => acc + curr.reps, 0) + reps;
@@ -513,10 +513,11 @@ const TrackingScreen: React.FC<Props> = ({ route, navigation }) => {
       setCameraEnabled(false);
       return;
     }
-    if (!hasPermission) {
-      const granted = await requestPermission();
-      if (!granted) {
-        Alert.alert('Permission Denied', 'Camera access is required for AI tracking.');
+    if (Platform.OS === 'android') {
+      const granted = await PermissionsAndroid.request(
+        PermissionsAndroid.PERMISSIONS.CAMERA
+      );
+      if (granted !== PermissionsAndroid.RESULTS.GRANTED) {
         return;
       }
     }
@@ -535,44 +536,30 @@ const TrackingScreen: React.FC<Props> = ({ route, navigation }) => {
       <SafeAreaView edges={['top']} style={styles.safe}>
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
           <View style={styles.cameraBox}>
-            {cameraEnabled && device ? (
+            {cameraEnabled ? (
               <View style={styles.cameraInnerContainer}>
-                <VCamera
+                <PoseLandmarksView
+                  hybridRef={callback((ref: any) => { poseLandmarksRef.current = ref })}
                   style={StyleSheet.absoluteFill}
-                  device={device}
                   isActive={!isPaused}
-                  frameProcessor={frameProcessor}
+                  enableSkeleton={true}
+                  skeletonColor={WT.colors.primary}
+                  skeletonBoneThickness={3}
+                  landmarkColor={WT.colors.warning}
+                  minVisibilityConfidence={0.5}
+                  modelSelection={0}
+                  delegateSelection={0}
+                  inferenceSampleRateHz={15}
+                  enableVisibilityRecovery={true}
+                  enableOneEuroFilter={true}
+                  enableMotionPrediction={true}
+                  oneEuroMinCutoff={1}
+                  oneEuroBeta={0.5}
+                  width={cameraWidth}
+                  height={CAMERA_BOX_HEIGHT}
                 />
-                
-                {/* Calibration Overlay */}
-                {isCalibrating && (
-                  <View style={styles.calibrationOverlay}>
-                    <Ionicons name="scan-outline" size={80} color={deviationScore < 0.2 ? '#69C36D' : '#FFF'} />
-                    <Text style={styles.calibrationText}>
-                      {deviationScore < 0.2 ? 'Hold position...' : 'Align your body with the camera'}
-                    </Text>
-                  </View>
-                )}
 
-                {/* Ghost Skeleton Overlay */}
-                {ghostSkeleton && !isPaused && (
-                  <View style={styles.ghostContainer} pointerEvents="none">
-                    <Svg width="100%" height="100%" viewBox="0 0 1 1">
-                      {ghostSkeleton.map((p, i) => {
-                        if (!p || (p.visibility ?? 1) < 0.5) return null;
-                        return (
-                          <Circle
-                            key={i}
-                            cx={p.x}
-                            cy={p.y}
-                            r="0.015"
-                            fill="rgba(255, 255, 255, 0.4)"
-                          />
-                        );
-                      })}
-                    </Svg>
-                  </View>
-                )}
+                {/* Ghost Skeleton Overlay (hidden) */}
 
                 <View style={styles.metricsOverlay} pointerEvents="none">
                   <OverlayMetric label="Reps" selector={s => s.reps} />
@@ -667,14 +654,6 @@ const TrackingScreen: React.FC<Props> = ({ route, navigation }) => {
               activeOpacity={0.9}
             >
               <Text style={styles.ghostTempoBtnText}>Ghost Guide</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.ghostTempoBtnAlt}
-              onPress={() => navigation.navigate('TempoClassifierTest')}
-              activeOpacity={0.9}
-            >
-              <Text style={styles.ghostTempoBtnText}>Tempo</Text>
             </TouchableOpacity>
           </View>
         </ScrollView>
