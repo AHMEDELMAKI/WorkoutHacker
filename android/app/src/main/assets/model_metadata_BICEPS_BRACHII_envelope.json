@@ -1,0 +1,21 @@
+{
+  "version": "v3.0",
+  "model": "RandomForestClassifier",
+  "envelope_mode": true,
+  "envelope_fs": 50.0,
+  "n_estimators": 300,
+  "n_features": 11,
+  "muscle_group": "BICEPS_BRACHII",
+  "classes": [
+    0,
+    1
+  ],
+  "label_map": {
+    "0": "non_fatigue",
+    "1": "fatigue"
+  },
+  "random_state": 42,
+  "dataset": "sEMG Fatigue Classifier \u2014 Envelope mode (amplitude features only)",
+  "no_filter": true,
+  "description": "Input is RMS envelope at 50 Hz \u2014 no bandpass filter needed"
+}

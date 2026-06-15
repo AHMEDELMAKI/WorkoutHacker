@@ -83,6 +83,7 @@ const TempoClassifierTestScreen: React.FC = () => {
       exerciseRecognition.ingestLandmarksBuffer(buffer);
       const exercise = exerciseRecognition.getCurrentExercise() ?? null;
       const exConfidence = exerciseRecognition.getCurrentConfidence();
+      console.log(`[TempoClassifierTestScreen] Detected Exercise: ${exercise} (Confidence: ${(exConfidence * 100).toFixed(1)}%)`);
       setCurrentExercise(exercise);
       setExerciseConfidence(exConfidence);
       setClassifierInferenceMs(exerciseRecognition.getLastClassifierInferenceTimeMs());

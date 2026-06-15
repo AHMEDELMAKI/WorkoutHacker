@@ -17,6 +17,7 @@ interface AiState {
     reps: number;
     formScore: number;
     fatigueLevel: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+    fatigueConfidence: number;
     tempo: string | null;
     tempoQuality: number;
     isProcessing: boolean;
@@ -31,6 +32,7 @@ interface AiState {
         reps?: number;
         formScore?: number;
         fatigue?: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+        fatigueConfidence?: number;
         tempo?: string;
         tempoQuality?: number;
         exercise?: string;
@@ -46,6 +48,7 @@ export const useAiStore = create<AiState>((set) => ({
     reps: 0,
     formScore: 100,
     fatigueLevel: 'LOW',
+    fatigueConfidence: 0,
     tempo: null,
     tempoQuality: 0,
     isProcessing: false,
@@ -58,6 +61,7 @@ export const useAiStore = create<AiState>((set) => ({
         reps: data.reps ?? state.reps,
         formScore: data.formScore ?? state.formScore,
         fatigueLevel: data.fatigue ?? state.fatigueLevel,
+        fatigueConfidence: data.fatigueConfidence ?? state.fatigueConfidence,
         tempo: data.tempo ?? state.tempo,
         tempoQuality: data.tempoQuality ?? state.tempoQuality,
         detectedExercise: data.exercise ?? state.detectedExercise,
@@ -76,6 +80,7 @@ export const useAiStore = create<AiState>((set) => ({
         reps: 0,
         formScore: 100,
         fatigueLevel: 'LOW',
+        fatigueConfidence: 0,
         tempo: null,
         tempoQuality: 0,
         isProcessing: false,

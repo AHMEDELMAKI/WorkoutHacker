@@ -9,7 +9,8 @@ import { subscribeVoiceAction } from '../../../services/voiceActionBus';
 import { speak } from '../../../services/ttsService';
 import { useWorkoutStore } from '../../../store/workoutStore';
 import { useAiStore } from '../../../store/aiStore';
-import { useAiPipeline } from '../../../hooks/useAiPipeline';
+import { useAiPipeline, muscleForExercise } from '../../../hooks/useAiPipeline';
+import { useEMGPackets, useWiFiSensorStatus, isEMGPacket } from '@workout-hacker/esp-connection';
 import {
   Alert,
   Animated,
@@ -64,6 +65,14 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     paddingHorizontal: 12,
     paddingVertical: 4,
+  },
+  muscleNoticeBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginTop: -8,
+    marginBottom: WT.spacing.md,
   },
   sensorDot: { width: 7, height: 7, borderRadius: 4 },
   sensorText: { fontSize: 12, color: 'rgba(255,255,255,0.80)' },
@@ -275,6 +284,81 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   floatingButtonText: { color: '#FFF', fontSize: 12, fontWeight: '700' },
+  emgNoticeCard: {
+    backgroundColor: 'rgba(140, 92, 196, 0.12)',
+    borderRadius: WT.radius.md,
+    borderWidth: 1,
+    borderColor: 'rgba(140, 92, 196, 0.35)',
+    padding: WT.spacing.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: WT.spacing.md,
+    marginBottom: WT.spacing.lg,
+  },
+  emgNoticeIconContainer: {
+    backgroundColor: 'rgba(140, 92, 196, 0.2)',
+    borderRadius: WT.radius.sm,
+    padding: WT.spacing.xs,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  emgNoticeTextContainer: {
+    flex: 1,
+  },
+  emgNoticeTitle: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: WT.colors.textMuted,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    marginBottom: 4,
+  },
+  emgNoticeMessage: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: WT.colors.textLight,
+  },
+  emgHighlight: {
+    color: WT.colors.warning,
+    fontWeight: '900',
+  },
+  emgNoticeSub: {
+    fontSize: 11,
+    color: 'rgba(255,255,255,0.55)',
+    marginTop: 4,
+  },
+  emgNoticeHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 4,
+  },
+  predictionBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(105, 195, 109, 0.15)',
+    borderRadius: 999,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    gap: 4,
+  },
+  predictionDot: {
+    width: 5,
+    height: 5,
+    borderRadius: 2.5,
+    backgroundColor: WT.colors.success,
+  },
+  predictionBadgeText: {
+    fontSize: 8,
+    fontWeight: '900',
+    color: WT.colors.success,
+    letterSpacing: 0.5,
+  },
+  emgStatusOverlay: {
+    position: 'absolute',
+    bottom: 16,
+    left: 16,
+  },
 });
 
 // ─── Sub-Components ──────────────────────────────────────
@@ -319,13 +403,33 @@ const TempoOverlay = React.memo(() => {
   );
 });
 
+const MuscleNotice = React.memo(() => {
+  const detectedExercise = useAiStore(s => s.detectedExercise);
+  const muscle = muscleForExercise(detectedExercise);
+
+  return (
+    <View style={styles.muscleNoticeBadge}>
+      <Ionicons name="information-circle-outline" size={16} color={WT.colors.textMuted} />
+      <Text style={[styles.sensorText, { color: WT.colors.textMuted }]}>
+        {muscle ? `Wear EMG on ${muscle.toUpperCase()}` : 'No Muscle Detected'}
+      </Text>
+    </View>
+  );
+});
+
 const LiveAnalysis = React.memo(() => {
   const reps = useAiStore(s => s.reps);
   const formScore = useAiStore(s => s.formScore);
   const tempo = useAiStore(s => s.tempo);
-  const tempoQuality = useAiStore(s => s.tempoQuality);
+  const fatigueLevel = useAiStore(s => s.fatigueLevel);
+  const fatigueConfidence = useAiStore(s => s.fatigueConfidence);
   const detectedExercise = useAiStore(s => s.detectedExercise);
   const caloriesBurned = useWorkoutStore(s => s.caloriesBurned);
+
+  const fatigueColor = fatigueLevel === 'LOW' ? WT.colors.success
+    : fatigueLevel === 'MEDIUM' ? WT.colors.warning
+    : fatigueLevel === 'HIGH' ? '#E56B6B'
+    : '#B33A3A';
 
   return (
     <>
@@ -334,6 +438,7 @@ const LiveAnalysis = React.memo(() => {
         { label: 'Exercise', value: (detectedExercise || 'Detecting...').replace(/_/g, ' '), color: WT.colors.primary },
         { label: 'Form Score', value: `${formScore}%`, color: formScore > 80 ? WT.colors.success : WT.colors.warning },
         { label: 'Tempo', value: tempo ? `${tempo}` : 'Analyzing...', color: WT.colors.primary },
+        { label: 'Fatigue', value: fatigueLevel, color: fatigueColor },
         { label: 'Burned', value: `${Math.round(caloriesBurned)} kcal`, color: WT.colors.danger },
       ].map(metric => (
         <View key={metric.label} style={styles.metricRow}>
@@ -364,6 +469,119 @@ const MotivationDisplay = React.memo(() => {
   return <Text style={styles.motivation}>{message}</Text>;
 });
 
+const getEMGPlacementText = (targetMuscles: string): { muscleName: string; details: string } => {
+  if (!targetMuscles) {
+    return { muscleName: 'Target Muscle', details: 'Wear EMG on the primary muscle group.' };
+  }
+  const firstMuscle = targetMuscles.split(',')[0].trim().toLowerCase();
+
+  switch (firstMuscle) {
+    case 'bicep':
+      return { muscleName: 'Biceps', details: 'Place electrodes on the center of the biceps muscle belly.' };
+    case 'tricep':
+      return { muscleName: 'Triceps', details: 'Place electrodes on the outer/long head of the triceps.' };
+    case 'chest':
+      return { muscleName: 'Pectorals (Chest)', details: 'Place electrodes on the mid-chest (pectoralis major).' };
+    case 'deltoid':
+      return { muscleName: 'Deltoids (Shoulders)', details: 'Place electrodes on the lateral or anterior head of the shoulder.' };
+    case 'abdominal':
+      return { muscleName: 'Abdominals', details: 'Place electrodes on the rectus abdominis (upper or lower).' };
+    case 'lats':
+      return { muscleName: 'Latissimus Dorsi (Lats)', details: 'Place electrodes on the mid-outer back area.' };
+    case 'trapezius':
+      return { muscleName: 'Trapezius (Traps)', details: 'Place electrodes on the upper trapezius (neck/shoulder area).' };
+    case 'lumbar':
+      return { muscleName: 'Lower Back', details: 'Place electrodes on the lower erector spinae muscles.' };
+    case 'quad':
+    case 'quads':
+      return { muscleName: 'Quadriceps (Quads)', details: 'Place electrodes on the rectus femoris (front thigh).' };
+    case 'calf':
+    case 'calves':
+      return { muscleName: 'Calves', details: 'Place electrodes on the gastrocnemius (upper calf muscle belly).' };
+    case 'forearm':
+      return { muscleName: 'Forearms', details: 'Place electrodes on the wrist flexors/extensors on the forearm.' };
+    case 'glutes':
+    case 'glute':
+      return { muscleName: 'Gluteus Maximus (Glutes)', details: 'Place electrodes on the upper outer quadrant of the buttock.' };
+    case 'hamstrings':
+    case 'hamstring':
+      return { muscleName: 'Hamstrings', details: 'Place electrodes on the back of the thigh.' };
+    case 'gastrocnemius':
+    case 'soleus':
+      return { muscleName: 'Calves', details: 'Place electrodes on the gastrocnemius (upper calf muscle belly).' };
+    default:
+      const capitalized = targetMuscles.split(',')[0].trim()
+        .replace(/\b\w/g, c => c.toUpperCase());
+      return { muscleName: capitalized, details: `Wear EMG on the ${capitalized} muscle belly.` };
+  }
+};
+
+const getPlacementForPrediction = (predictedExercise: string): { muscleName: string; details: string } => {
+  const name = predictedExercise.toLowerCase().replace(/_/g, ' ');
+  
+  if (name.includes('bicep') || name.includes('curl')) {
+    return { muscleName: 'Biceps', details: 'Place electrodes on the center of the biceps muscle belly.' };
+  }
+  if (name.includes('tricep') || name.includes('extension') || name.includes('pushdown')) {
+    return { muscleName: 'Triceps', details: 'Place electrodes on the outer/long head of the triceps.' };
+  }
+  if (name.includes('shoulder') || name.includes('press') || name.includes('raise') || name.includes('deltoid')) {
+    return { muscleName: 'Deltoids (Shoulders)', details: 'Place electrodes on the lateral or anterior head of the shoulder.' };
+  }
+  if (name.includes('chest') || name.includes('pushup') || name.includes('bench')) {
+    return { muscleName: 'Pectorals (Chest)', details: 'Place electrodes on the mid-chest (pectoralis major).' };
+  }
+  if (name.includes('squat') || name.includes('quad') || name.includes('leg extension')) {
+    return { muscleName: 'Quadriceps (Quads)', details: 'Place electrodes on the rectus femoris (front thigh).' };
+  }
+  if (name.includes('calf') || name.includes('raise')) {
+    return { muscleName: 'Calves', details: 'Place electrodes on the gastrocnemius (upper calf muscle belly).' };
+  }
+  if (name.includes('abs') || name.includes('crunch') || name.includes('plank') || name.includes('abdominal')) {
+    return { muscleName: 'Abdominals', details: 'Place electrodes on the rectus abdominis (upper or lower).' };
+  }
+  if (name.includes('lats') || name.includes('row') || name.includes('pull')) {
+    return { muscleName: 'Latissimus Dorsi (Lats)', details: 'Place electrodes on the mid-outer back area.' };
+  }
+  
+  return { 
+    muscleName: name.replace(/\b\w/g, c => c.toUpperCase()), 
+    details: 'Wear EMG on the primary target muscle belly.' 
+  };
+};
+
+const EMGNoticeCard: React.FC<{ initialTargetMuscles: string }> = React.memo(({ initialTargetMuscles }) => {
+  const detectedExercise = useAiStore(s => s.detectedExercise);
+  const placement = detectedExercise
+    ? getPlacementForPrediction(detectedExercise)
+    : getEMGPlacementText(initialTargetMuscles);
+
+  return (
+    <View style={styles.emgNoticeCard}>
+      <View style={styles.emgNoticeIconContainer}>
+        <Ionicons name="pulse" size={24} color={WT.colors.warning} />
+      </View>
+      <View style={styles.emgNoticeTextContainer}>
+        <View style={styles.emgNoticeHeader}>
+          <Text style={styles.emgNoticeTitle}>EMG Wear Placement</Text>
+          {detectedExercise && (
+            <View style={styles.predictionBadge}>
+              <View style={styles.predictionDot} />
+              <Text style={styles.predictionBadgeText}>AI DETECTED</Text>
+            </View>
+          )}
+        </View>
+        <Text style={styles.emgNoticeMessage}>
+          Wear EMG sensor on your <Text style={styles.emgHighlight}>{placement.muscleName}</Text>
+        </Text>
+        <Text style={styles.emgNoticeSub}>
+          {placement.details}
+        </Text>
+      </View>
+    </View>
+  );
+});
+
 // ─── Main Screen ──────────────────────────────────────────
 
 const TrackingScreen: React.FC<Props> = ({ route, navigation }) => {
@@ -389,7 +607,16 @@ const TrackingScreen: React.FC<Props> = ({ route, navigation }) => {
   const poseLandmarksRef = useRef<any>(null);
 
   // AI Pipeline Hook
-  const { processBuffer } = useAiPipeline();
+  const { processBuffer, feedEMG } = useAiPipeline();
+
+  // EMG Sensor Integration
+  const sensorStatus = useWiFiSensorStatus();
+  useEMGPackets((packet: any) => {
+    const rawValues: number[] | undefined = packet.rawValues;
+    if (rawValues && rawValues.length > 0) {
+      feedEMG(rawValues);
+    }
+  });
 
   // On mount: prepare session
   useEffect(() => {
@@ -480,7 +707,7 @@ const TrackingScreen: React.FC<Props> = ({ route, navigation }) => {
   const togglePause = () => setIsPaused(!isPaused);
 
   const endWorkout = async () => {
-    const { formScore, fatigueLevel, reps } = useAiStore.getState();
+    const { formScore, fatigueLevel, fatigueConfidence, reps } = useAiStore.getState();
     const { elapsedSeconds, caloriesBurned, completedExercises, currentExercise } = useWorkoutStore.getState();
     
     const allExercises = [...completedExercises];
@@ -500,7 +727,8 @@ const TrackingScreen: React.FC<Props> = ({ route, navigation }) => {
           reps: totalReps,
           sets: setsCompleted,
           score: formScore,
-          fatigue: fatigueLevel
+          fatigue: fatigueLevel,
+          fatigueConfidence
       });
     } catch (error) {
       console.error('[TrackingScreen] Failed to complete workout:', error);
@@ -566,7 +794,16 @@ const TrackingScreen: React.FC<Props> = ({ route, navigation }) => {
                   <OverlayMetric label="Tempo" selector={s => s.tempo || 'Analyzing...'} />
                   <OverlayMetric label="Form" selector={s => s.formScore} suffix="%" />
                   <OverlayMetric label="Fatigue" selector={s => s.fatigueLevel} />
+                  <OverlayMetric label="Confidence" selector={s => `${Math.round(s.fatigueConfidence * 100)}`} suffix="%" />
                   <OverlayMetric label="Type" selector={s => (s.detectedExercise || 'Detecting...').replace('_', ' ')} />
+                </View>
+                {/* EMG Sensor Status */}
+                <View style={styles.emgStatusOverlay}>
+                  <View style={[styles.sensorBadge, { opacity: sensorStatus === 'connected' ? 1 : 0.5 }]}>
+                    <View style={[styles.sensorDot, { backgroundColor: sensorStatus === 'connected' ? '#69C36D' : '#E56B6B' }]} />
+                    <Text style={styles.sensorText}>EMG {sensorStatus === 'connected' ? 'Connected' : sensorStatus}</Text>
+                  </View>
+                  <MuscleNotice />
                 </View>
 
                 {/* Prominent Overlay HUDs */}
@@ -608,6 +845,9 @@ const TrackingScreen: React.FC<Props> = ({ route, navigation }) => {
           </View>
 
           <Text style={styles.exLabel}>{exercise.name}</Text>
+
+          {/* EMG Sensor Placement Notice Card */}
+          <EMGNoticeCard initialTargetMuscles={exercise?.targetMuscles || ''} />
 
           <View style={styles.statsCard}>
             <View style={styles.repSection}>

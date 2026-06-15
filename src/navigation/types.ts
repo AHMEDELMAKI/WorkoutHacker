@@ -122,6 +122,7 @@ export type WorkoutStackParamList = {
         sets?: number;
         score?: number;
         fatigue?: string;
+        fatigueConfidence?: number;
     };
 };
 
