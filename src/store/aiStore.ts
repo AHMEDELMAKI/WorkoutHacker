@@ -26,6 +26,11 @@ interface AiState {
     guideOverlay: PoseLandmark[] | null;
     deviationScore: number;
 
+    // Debug variables
+    debugEmgBufferLength: number;
+    debugLastPredictTime: string | null;
+    debugClassifierMuscle: string | null;
+
     // Actions
     setLandmarks: (landmarks: PoseLandmark[]) => void;
     updateInference: (data: {
@@ -36,6 +41,9 @@ interface AiState {
         tempo?: string;
         tempoQuality?: number;
         exercise?: string;
+        debugEmgBufferLength?: number;
+        debugLastPredictTime?: string | null;
+        debugClassifierMuscle?: string | null;
     }) => void;
     setGuideOverlay: (overlay: PoseLandmark[] | null, deviation?: number) => void;
     setProcessing: (val: boolean) => void;
@@ -55,6 +63,11 @@ export const useAiStore = create<AiState>((set) => ({
     guideOverlay: null,
     deviationScore: 0,
 
+    // Debug defaults
+    debugEmgBufferLength: 0,
+    debugLastPredictTime: null,
+    debugClassifierMuscle: null,
+
     setLandmarks: (landmarks) => set({ landmarks }),
 
     updateInference: (data) => set((state) => ({
@@ -65,6 +78,9 @@ export const useAiStore = create<AiState>((set) => ({
         tempo: data.tempo ?? state.tempo,
         tempoQuality: data.tempoQuality ?? state.tempoQuality,
         detectedExercise: data.exercise ?? state.detectedExercise,
+        debugEmgBufferLength: data.debugEmgBufferLength ?? state.debugEmgBufferLength,
+        debugLastPredictTime: data.debugLastPredictTime ?? state.debugLastPredictTime,
+        debugClassifierMuscle: data.debugClassifierMuscle ?? state.debugClassifierMuscle,
     })),
 
     setGuideOverlay: (overlay, deviation) => set({
@@ -86,5 +102,8 @@ export const useAiStore = create<AiState>((set) => ({
         isProcessing: false,
         guideOverlay: null,
         deviationScore: 0,
+        debugEmgBufferLength: 0,
+        debugLastPredictTime: null,
+        debugClassifierMuscle: null,
     }),
 }));

@@ -85,6 +85,8 @@ const processBuffer = (
         }
     }
 
+    const muscle = muscleForExercise(activeExerciseName);
+
     const updateInference = useAiStore.getState().updateInference;
     const setGuideOverlay = useAiStore.getState().setGuideOverlay;
 
@@ -94,6 +96,7 @@ const processBuffer = (
         tempo,
         tempoQuality: quality,
         exercise: exercise ?? undefined,
+        ...(muscle ? { debugClassifierMuscle: muscle } : {}),
     });
     if (ghostSkeleton) {
         setGuideOverlay(ghostSkeleton.points ?? null, deviation);
@@ -217,6 +220,7 @@ export const useAiPipeline = () => {
         const detectedExercise = useAiStore.getState().detectedExercise;
         const activeExerciseName = detectedExercise || currentExercise?.exercise;
         const muscle = muscleForExercise(activeExerciseName);
+        console.log(`[feedEMG] detected: "${detectedExercise}", current: "${currentExercise?.exercise}", active: "${activeExerciseName}", muscle: "${muscle}"`);
 
         if (muscle && muscle !== currentMuscleRef.current) {
             currentMuscleRef.current = muscle;
@@ -227,12 +231,16 @@ export const useAiPipeline = () => {
             buffer.shift();
         }
         buffer.push(rmsValue);
+
+        // Update debug state
+        const updateInference = useAiStore.getState().updateInference;
+        updateInference({
+            debugEmgBufferLength: buffer.length,
+            debugClassifierMuscle: currentMuscleRef.current || 'NONE',
+        });
     }, []);
 
     const predictFatigue = useCallback(() => {
-        const buffer = emgBufferRef.current;
-        if (buffer.length < 10) return;
-
         const { currentExercise } = useWorkoutStore.getState();
         const detectedExercise = useAiStore.getState().detectedExercise;
         const activeExerciseName = detectedExercise || currentExercise?.exercise;
@@ -244,6 +252,16 @@ export const useAiPipeline = () => {
         }
 
         const activeMuscle = currentMuscleRef.current;
+
+        // Update target muscle in the store even if we exit early
+        const updateInference = useAiStore.getState().updateInference;
+        updateInference({
+            debugClassifierMuscle: activeMuscle || 'NONE',
+        });
+
+        const buffer = emgBufferRef.current;
+        if (buffer.length < 10) return;
+
         if (!activeMuscle) return;
 
         if (!classifierReady.current || !classifierRef.current) {
@@ -261,8 +279,13 @@ export const useAiPipeline = () => {
             const fatigueProb = result.probabilities['fatigue'] ?? 0;
             const fatigue = fatigueFromProbability(fatigueProb);
 
-            const updateInference = useAiStore.getState().updateInference;
-            updateInference({ fatigue, fatigueConfidence: result.confidence });
+            updateInference({
+                fatigue,
+                fatigueConfidence: result.confidence,
+                debugEmgBufferLength: buffer.length,
+                debugLastPredictTime: new Date().toLocaleTimeString(),
+                debugClassifierMuscle: activeMuscle,
+            });
         } catch (e) {
             console.error('[FatigueClassifier] predict error:', e);
         }
