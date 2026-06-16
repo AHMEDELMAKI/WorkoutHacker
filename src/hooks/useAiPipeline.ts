@@ -157,6 +157,7 @@ export const useAiPipeline = () => {
     const emgBufferRef = useRef<number[]>([]);
     const currentMuscleRef = useRef<'biceps' | 'triceps' | null>(null);
     const fatigueTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+    const streamingInitializedRef = useRef(false);
 
     const loadFatigueModel = useCallback(async (muscle: 'biceps' | 'triceps') => {
         if (classifierRef.current && currentMuscleRef.current === muscle && classifierReady.current) {
@@ -200,6 +201,7 @@ export const useAiPipeline = () => {
             classifierRef.current = classifier;
             classifierReady.current = true;
             currentMuscleRef.current = muscle;
+            streamingInitializedRef.current = false;
         } catch (e) {
             console.error('[FatigueClassifier] Failed to load:', e);
             classifierReady.current = false;
@@ -249,6 +251,7 @@ export const useAiPipeline = () => {
         if (muscle && muscle !== currentMuscleRef.current) {
             currentMuscleRef.current = muscle;
             classifierReady.current = false;
+            streamingInitializedRef.current = false; // Reset streaming baseline on muscle switch!
         }
 
         const activeMuscle = currentMuscleRef.current;
@@ -260,8 +263,6 @@ export const useAiPipeline = () => {
         });
 
         const buffer = emgBufferRef.current;
-        if (buffer.length < 10) return;
-
         if (!activeMuscle) return;
 
         if (!classifierReady.current || !classifierRef.current) {
@@ -269,12 +270,31 @@ export const useAiPipeline = () => {
             return;
         }
 
-        try {
-            const windowSamples = Math.round(PREDICTION_WINDOW_SEC * EMG_FS);
-            const signal = buffer.slice(-windowSamples);
-            if (signal.length < 2) return;
+        // We need at least 10 seconds of baseline data (500 samples @ 50 Hz) to initialize streaming
+        if (!streamingInitializedRef.current) {
+            if (buffer.length < 500) {
+                // Not enough baseline samples yet. Keep collecting.
+                updateInference({
+                    debugEmgBufferLength: buffer.length,
+                });
+                return;
+            }
+            try {
+                // Initialize streaming with the first 10 seconds of the buffer
+                classifierRef.current.startStreaming(buffer.slice(0, 500));
+                streamingInitializedRef.current = true;
+                console.log('[FatigueClassifier] Streaming initialized with 10s baseline.');
+            } catch (e) {
+                console.error('[FatigueClassifier] startStreaming error:', e);
+                return;
+            }
+        }
 
-            const result = classifierRef.current.predict(signal, EMG_FS);
+        if (buffer.length < 12) return;
+        const lastWindow = buffer.slice(-12);
+
+        try {
+            const result = classifierRef.current.predictStreaming(lastWindow);
 
             const fatigueProb = result.probabilities['fatigue'] ?? 0;
             const fatigue = fatigueFromProbability(fatigueProb);
@@ -287,7 +307,7 @@ export const useAiPipeline = () => {
                 debugClassifierMuscle: activeMuscle,
             });
         } catch (e) {
-            console.error('[FatigueClassifier] predict error:', e);
+            console.error('[FatigueClassifier] predictStreaming error:', e);
         }
     }, [loadFatigueModel]);
 
@@ -317,6 +337,7 @@ export const useAiPipeline = () => {
                 classifierRef.current.unload();
                 classifierRef.current = null;
                 classifierReady.current = false;
+                streamingInitializedRef.current = false;
             }
             exerciseRecognition.stopSession();
         };

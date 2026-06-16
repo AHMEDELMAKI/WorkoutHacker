@@ -460,7 +460,7 @@ const FatigueDiagnosticsCard = React.memo(() => {
   const lastPredictTime = useAiStore(s => s.debugLastPredictTime);
   const classifierMuscle = useAiStore(s => s.debugClassifierMuscle);
 
-  const isPredicting = emgBufferLength >= 10 && classifierMuscle && classifierMuscle !== 'NONE';
+  const isPredicting = emgBufferLength >= 500 && classifierMuscle && classifierMuscle !== 'NONE';
 
   return (
     <View style={styles.debugCard}>
@@ -472,7 +472,7 @@ const FatigueDiagnosticsCard = React.memo(() => {
       <View style={styles.debugRow}>
         <Text style={styles.debugLabel}>EMG Buffer Count:</Text>
         <Text style={[styles.debugValue, { color: emgBufferLength > 0 ? '#6BCB77' : '#FF6B6B' }]}>
-          {emgBufferLength} samples {emgBufferLength < 10 ? '(Needs >= 10 for prediction)' : ''}
+          {emgBufferLength} samples {emgBufferLength < 500 ? `(Calibrating: ${Math.round((emgBufferLength / 500) * 100)}%)` : ''}
         </Text>
       </View>
 
@@ -486,7 +486,7 @@ const FatigueDiagnosticsCard = React.memo(() => {
       <View style={styles.debugRow}>
         <Text style={styles.debugLabel}>Prediction Flow:</Text>
         <Text style={[styles.debugValue, { color: isPredicting ? '#6BCB77' : '#FF6B6B' }]}>
-          {isPredicting ? 'RUNNING / ACTIVE' : 'WAITING FOR DATA'}
+          {isPredicting ? 'RUNNING / ACTIVE' : emgBufferLength < 500 && emgBufferLength > 0 ? 'CALIBRATING BASELINE' : 'WAITING FOR DATA'}
         </Text>
       </View>
 
