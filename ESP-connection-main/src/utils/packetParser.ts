@@ -17,6 +17,16 @@ export type IMUPacket = {
   roll: number;
   pitch: number;
   yaw: number;
+  // Additional IMU sensor data
+  ax?: number;  // accelerometer x
+  ay?: number;  // accelerometer y
+  az?: number;  // accelerometer z
+  gx?: number;  // gyroscope x
+  gy?: number;  // gyroscope y
+  gz?: number;  // gyroscope z
+  mx?: number;  // magnetometer x
+  my?: number;  // magnetometer y
+  mz?: number;  // magnetometer z
 };
 
 export type SensorPacket = EMGPacket | IMUPacket;
@@ -41,7 +51,8 @@ export function extractEMGValues(lineParts: string[]): number[] {
 
 export function extractIMUValues(lineParts: string[]): number[] {
   const nums: number[] = [];
-  for (let i = 2; i < Math.min(5, lineParts.length); i++) {
+  // Extract all numeric values after the label (positions 2 onwards)
+  for (let i = 2; i < lineParts.length; i++) {
     const v = Number(lineParts[i]);
     if (!Number.isNaN(v)) nums.push(v);
   }
@@ -71,7 +82,32 @@ export function parseSensorLine(line: string): SensorPacket | null {
     const values = extractIMUValues(parts);
     if (values.length >= 3) {
       const [roll, pitch, yaw] = values;
-      return { sensor: 'imu', timestamp: Number.isFinite(ts) ? ts : Date.now(), roll, pitch, yaw };
+      const packet: IMUPacket = { 
+        sensor: 'imu', 
+        timestamp: Number.isFinite(ts) ? ts : Date.now(), 
+        roll, 
+        pitch, 
+        yaw,
+      };
+      
+      // Add optional accelerometer, gyroscope, magnetometer values if present
+      if (values.length >= 6) {
+        packet.ax = values[3];
+        packet.ay = values[4];
+        packet.az = values[5];
+      }
+      if (values.length >= 9) {
+        packet.gx = values[6];
+        packet.gy = values[7];
+        packet.gz = values[8];
+      }
+      if (values.length >= 12) {
+        packet.mx = values[9];
+        packet.my = values[10];
+        packet.mz = values[11];
+      }
+      
+      return packet;
     }
     return null;
   }
@@ -80,7 +116,32 @@ export function parseSensorLine(line: string): SensorPacket | null {
   const trailingNums = parts.slice(1).map((p) => Number(p)).filter((n) => !Number.isNaN(n));
   if (trailingNums.length >= 3) {
     const [roll, pitch, yaw] = trailingNums.slice(0, 3);
-    return { sensor: 'imu', timestamp: Number.isFinite(ts) ? ts : Date.now(), roll, pitch, yaw };
+    const packet: IMUPacket = { 
+      sensor: 'imu', 
+      timestamp: Number.isFinite(ts) ? ts : Date.now(), 
+      roll, 
+      pitch, 
+      yaw,
+    };
+    
+    // Add optional values if present
+    if (trailingNums.length >= 6) {
+      packet.ax = trailingNums[3];
+      packet.ay = trailingNums[4];
+      packet.az = trailingNums[5];
+    }
+    if (trailingNums.length >= 9) {
+      packet.gx = trailingNums[6];
+      packet.gy = trailingNums[7];
+      packet.gz = trailingNums[8];
+    }
+    if (trailingNums.length >= 12) {
+      packet.mx = trailingNums[9];
+      packet.my = trailingNums[10];
+      packet.mz = trailingNums[11];
+    }
+    
+    return packet;
   }
 
   if (trailingNums.length >= 1) {

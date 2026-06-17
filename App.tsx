@@ -6,6 +6,7 @@ import AppNavigator from './src/navigation/AppNavigator';
 import GlobalVoiceController from './src/components/GlobalVoiceController';
 import { useAuthStore } from './src/store/authStore';
 import { WiFiSensorBridge } from './ESP-connection-main/src';
+import { WiFiSensorService } from './ESP-connection-main/src';
 
 // Error boundary component to catch rendering errors
 class ErrorBoundary extends React.Component<
@@ -105,6 +106,26 @@ const App = () => {
       </SafeAreaView>
     );
   }
+
+  React.useEffect(() => {
+    const unsubscribeData = WiFiSensorService.subscribeSensorData((packet) => {
+      console.log('📡 SENSOR DATA RECEIVED:', packet);
+    });
+
+    const unsubscribeStatus = WiFiSensorService.subscribeStatus((status) => {
+      console.log('🔄 WiFi Sensor Status:', status);
+    });
+
+    const unsubscribeError = WiFiSensorService.subscribeError((error) => {
+      console.error('❌ WiFi Sensor Error:', error.message);
+    });
+
+    return () => {
+      unsubscribeData();
+      unsubscribeStatus();
+      unsubscribeError();
+    };
+  }, []);
 
   return (
     <ErrorBoundary>

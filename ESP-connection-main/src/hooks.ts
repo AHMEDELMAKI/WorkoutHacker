@@ -157,3 +157,54 @@ export function useWiFiSensorState(): {
 
   return { status, error };
 }
+
+/**
+ * Hook to diagnose ESP32 connection issues
+ * 
+ * Usage:
+ * ```tsx
+ * const { run, loading, result } = useDiagnostics();
+ * 
+ * <Button onPress={() => run()}>
+ *   {loading ? 'Testing...' : 'Test Connection'}
+ * </Button>
+ * 
+ * {result && (
+ *   <Text>
+ *     Root URL: {result.rootUrl ? '✓' : '✗'}
+ *     Data Endpoint: {result.dataEndpoint ? '✓' : '✗'}
+ *     Errors: {result.errors.join(', ')}
+ *   </Text>
+ * )}
+ * ```
+ */
+export interface DiagnosticResult {
+  rootUrl: boolean;
+  dataEndpoint: boolean;
+  errors: string[];
+}
+
+export function useDiagnostics() {
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState<DiagnosticResult | null>(null);
+
+  const run = useCallback(async () => {
+    setLoading(true);
+    try {
+      const diag = await WiFiSensorService.diagnoseConnection();
+      setResult(diag);
+      return diag;
+    } catch (error) {
+      const err = error instanceof Error ? error.message : String(error);
+      setResult({
+        rootUrl: false,
+        dataEndpoint: false,
+        errors: [err],
+      });
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  return { run, loading, result };
+}
