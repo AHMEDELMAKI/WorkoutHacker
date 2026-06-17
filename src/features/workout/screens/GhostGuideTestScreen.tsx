@@ -7,21 +7,25 @@ import {
   TouchableOpacity,
   Dimensions,
 } from 'react-native';
-import Slider from '@react-native-community/slider';
 import {
   SafeAreaView,
-  useSafeAreaInsets,
 } from 'react-native-safe-area-context';
 import {
   GhostGuideCore,
   ProcessResult,
-} from 'react-native-ghost-guide';
-import { PoseLandmarks } from 'react-native-pose-landmarks';
+} from '../../../lib/ghostGuide';
+import { callback } from 'react-native-nitro-modules';
+import { PoseLandmarksView } from 'react-native-pose-landmarks';
 import Svg, { Circle, Line } from 'react-native-svg';
 
 import AppText from '../../../components/AppText';
 import AppButton from '../../../components/AppButton';
 import { WT } from '../../../theme/workoutTheme';
+import { useAiPipeline } from '../../../hooks/useAiPipeline';
+import { useIMUPackets } from '@workout-hacker/esp-connection';
+import { WiFiSensorService } from '@workout-hacker/esp-connection';
+import { useAiStore } from '../../../store/aiStore';
+import { useWorkoutStore } from '../../../store/workoutStore';
 
 import bicepCurlFrames from '../../../assets/ghost-guide/bicep_curl_frames.json';
 import shoulderPressFrames from '../../../assets/ghost-guide/shoulder_press_frames.json';
@@ -121,16 +125,12 @@ function normalizeGhostPointsToLandmarkIndex(points: any): GhostPoint[] | null {
 }
 
 const GhostGuideTestScreen: React.FC = () => {
-  const insets = useSafeAreaInsets();
   const [result, setResult] = useState<ProcessResult | null>(null);
-  const [repCount, setRepCount] = useState(0);
-  const [checkpoint, setCheckpoint] = useState(0);
-  const [isAligned, setIsAligned] = useState(false);
-  const [status, setStatus] = useState('Initializing...');
   const [exerciseKey, setExerciseKey] = useState<keyof typeof EXERCISES>(
     'bicep_curl'
   );
   const [showExerciseDropdown, setShowExerciseDropdown] = useState(false);
+  const [cameraRect, setCameraRect] = useState({ x: 0, y: 0, w: 0, h: 0 });
 
   const exerciseConfig = useMemo(() => EXERCISES[exerciseKey], [exerciseKey]);
   const totalFrames = exerciseConfig.frames.length;
@@ -152,6 +152,32 @@ const GhostGuideTestScreen: React.FC = () => {
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
   const playbackInterval = useRef<ReturnType<typeof setInterval> | null>(null);
   const landmarksBufferRef = useRef<number[]>([]);
+  const poseLandmarksRef = useRef<any>(null);
+
+  // AI Pipeline & ESP IMU Integration
+  const { feedIMU } = useAiPipeline();
+
+  useIMUPackets((packet: any) => {
+    feedIMU(packet);
+  });
+
+  const imuClassification = useAiStore(s => s.imuClassification);
+
+  // Sync exercise selection to workout store so predictIMUForm can pick it up
+  useEffect(() => {
+    useWorkoutStore.getState().startExercise(exerciseConfig.label);
+  }, [exerciseKey]);
+
+  // Auto-connect ESP on mount, cleanup on unmount
+  useEffect(() => {
+    WiFiSensorService.configure({ baseUrl: 'http://192.168.4.1', pollIntervalMs: 50 });
+    WiFiSensorService.start();
+    return () => {
+      if (WiFiSensorService.isRunning()) {
+        WiFiSensorService.stop();
+      }
+    };
+  }, []);
 
   useEffect(() => {
     try {
@@ -160,24 +186,20 @@ const GhostGuideTestScreen: React.FC = () => {
         exerciseKey
       );
       GhostGuideCore.loadReference(reference);
-      setStatus(`Reference loaded: ${totalFrames} frames`);
       currentFrameRef.current = 0;
       _setCurrentFrameIndex(0);
-      applyGhostPoseRef.current = false;
+      applyGhostPoseRef.current = true;
     } catch (e) {
-      setStatus(`Error: ${e}`);
+      console.error('Reference load error:', e);
     }
   }, [exerciseConfig.frames, exerciseKey, totalFrames]);
 
   useEffect(() => {
-    const initialized = PoseLandmarks.initPoseLandmarker();
-    if (initialized) {
-      setStatus('Pose detection initialized');
-    }
-
     const interval = setInterval(() => {
-      const buffer = PoseLandmarks.getLandmarksBuffer();
-      if (buffer.length === 33 * 4) {
+      const ref = poseLandmarksRef.current;
+      if (!ref) return;
+      const buffer = ref.getLandmarksBuffer();
+      if (buffer && buffer.length === 33 * 4) {
         landmarksBufferRef.current = buffer;
         try {
           const res = GhostGuideCore.processLandmarksBufferWithReference(
@@ -190,9 +212,6 @@ const GhostGuideTestScreen: React.FC = () => {
           );
           if (!res) return;
           setResult(res);
-          setRepCount(res.repCount);
-          setCheckpoint(res.currentCheckpointIndex);
-          setIsAligned(res.isAligned);
         } catch (e) {
           console.error('Process frame error:', e);
         }
@@ -201,7 +220,6 @@ const GhostGuideTestScreen: React.FC = () => {
 
     return () => {
       clearInterval(interval);
-      PoseLandmarks.closePoseLandmarker();
     };
   }, [exerciseConfig.frames]);
 
@@ -251,12 +269,6 @@ const GhostGuideTestScreen: React.FC = () => {
 
   const ghostUpperBodyIndices = new Set([11, 12, 13, 14, 15, 16, 23, 24]);
 
-  const handleSliderChange = (value: number) => {
-    stopPlayback();
-    setCurrentFrameIndex(value);
-    applyGhostPoseRef.current = true;
-  };
-
   return (
     <View style={styles.root}>
       <StatusBar barStyle="light-content" backgroundColor={WT.colors.header} />
@@ -264,7 +276,7 @@ const GhostGuideTestScreen: React.FC = () => {
         <SafeAreaView edges={['top']}>
           <View style={styles.headerInner}>
             <AppText variant="h2" color={WT.colors.textLight} style={styles.headerTitle}>
-              Ghost Guide 👻
+              Ghost Guide
             </AppText>
             <AppText variant="body" color="rgba(255,255,255,0.80)">
               Reference pose alignment test
@@ -273,52 +285,52 @@ const GhostGuideTestScreen: React.FC = () => {
         </SafeAreaView>
       </View>
 
-      <View style={styles.skeletonContainer}>
-        <Svg width="100%" height="100%" viewBox="0 0 1 1">
-           {landmarksBufferRef.current.length === 33 * 4 && (
-             <>
-               {[
-                 [11,13],[13,15],[12,14],[14,16],
-                 [11,12],[23,24],
-                 [11,23],[12,24],
-               ].map(([i, j], idx) => {
-                  const x1 = landmarksBufferRef.current[i * 4];
-                  const y1 = landmarksBufferRef.current[i * 4 + 1];
-                  const x2 = landmarksBufferRef.current[j * 4];
-                  const y2 = landmarksBufferRef.current[j * 4 + 1];
-                  const vis1 = landmarksBufferRef.current[i * 4 + 3];
-                  const vis2 = landmarksBufferRef.current[j * 4 + 3];
-                 if (vis1 < 0.5 || vis2 < 0.5) return null;
-                 return (
-                   <Line
-                     key={`live-conn-${idx}`}
-                     x1={x1}
-                     y1={y1}
-                     x2={x2}
-                     y2={y2}
-                     stroke={isAligned ? WT.colors.success : WT.colors.primary}
-                     strokeWidth="0.005"
-                   />
-                 );
-               })}
-               {Array.from({ length: 33 }, (_, i) => {
-                  const x = landmarksBufferRef.current[i * 4];
-                  const y = landmarksBufferRef.current[i * 4 + 1];
-                  const vis = landmarksBufferRef.current[i * 4 + 3];
-                 if (vis < 0.5) return null;
-                 return (
-                   <Circle
-                     key={`live-lm-${i}`}
-                     cx={x}
-                     cy={y}
-                     r="0.01"
-                     fill={i >= 11 && i <= 16 ? WT.colors.primary : WT.colors.warning}
-                   />
-                 );
-               })}
-             </>
-           )}
+      <View style={styles.body}>
+        <View
+          style={styles.cameraContainer}
+          onLayout={e => {
+            const { x, y, width, height } = e.nativeEvent.layout;
+            setCameraRect({ x, y, w: width, h: height });
+          }}
+        >
+          <PoseLandmarksView
+            hybridRef={callback((ref: any) => { poseLandmarksRef.current = ref; })}
+            style={StyleSheet.absoluteFill}
+            isActive={true}
+            enableSkeleton={true}
+            skeletonColor={WT.colors.primary}
+            skeletonBoneThickness={3}
+            landmarkColor={WT.colors.warning}
+            minVisibilityConfidence={0.5}
+            modelSelection={0}
+            delegateSelection={0}
+            inferenceSampleRateHz={15}
+            enableVisibilityRecovery={true}
+            enableOneEuroFilter={true}
+            enableMotionPrediction={true}
+            oneEuroMinCutoff={1}
+            oneEuroBeta={0.5}
+            width={Dimensions.get('window').width - WT.spacing.lg * 2}
+            height={320}
+          />
+        </View>
 
+        {cameraRect.w > 0 && (
+          <Svg
+            width={cameraRect.w}
+            height={cameraRect.h}
+            viewBox="0 0 1 1"
+            style={[
+              styles.ghostRootOverlay,
+              {
+                top: cameraRect.y,
+                left: cameraRect.x,
+                width: cameraRect.w,
+                height: cameraRect.h,
+              },
+            ]}
+            pointerEvents="none"
+          >
             {ghostLandmarks && (
               <>
                 {[
@@ -329,8 +341,6 @@ const GhostGuideTestScreen: React.FC = () => {
                   const p2 = ghostLandmarks[j];
                   if (!ghostUpperBodyIndices.has(i) || !ghostUpperBodyIndices.has(j)) return null;
                   if (!p1 || !p2) return null;
-                  if (typeof p1.visibility === 'number' && p1.visibility < 0.5) return null;
-                  if (typeof p2.visibility === 'number' && p2.visibility < 0.5) return null;
                   return (
                     <Line
                       key={`ghost-conn-${idx}`}
@@ -338,8 +348,8 @@ const GhostGuideTestScreen: React.FC = () => {
                       y1={p1.y}
                       x2={p2.x}
                       y2={p2.y}
-                      stroke="rgba(255, 101, 132, 0.8)"
-                      strokeWidth="0.012"
+                      stroke="rgba(255, 101, 132, 0.85)"
+                      strokeWidth="0.03"
                     />
                   );
                 })}
@@ -349,52 +359,27 @@ const GhostGuideTestScreen: React.FC = () => {
                   .filter(({ p, i }) => ghostUpperBodyIndices.has(i) && !!p)
                   .map(({ p, i }) => {
                     if (!p) return null;
-                    if (typeof p.visibility === 'number' && p.visibility < 0.5) return null;
                     return (
                       <Circle
                         key={`ghost-lm-${i}`}
                         cx={p.x}
                         cy={p.y}
-                        r="0.02"
-                        fill="rgba(255, 101, 132, 0.6)"
+                        r="0.025"
+                        fill="rgba(255, 101, 132, 0.7)"
                       />
                     );
                   })}
               </>
             )}
-         </Svg>
-      </View>
+          </Svg>
+        )}
 
-      <ScrollView
-        style={styles.infoOverlay}
-        contentContainerStyle={styles.infoContent}
-        showsVerticalScrollIndicator={false}
-      >
+        <ScrollView
+          style={styles.infoOverlay}
+          contentContainerStyle={styles.infoContent}
+          showsVerticalScrollIndicator={false}
+        >
         <View style={styles.card}>
-          <AppText variant="caption" style={styles.sectionLabel}>STATUS</AppText>
-          <AppText variant="bodySmall" color={WT.colors.textDark}>{status}</AppText>
-          
-          <View style={styles.divider} />
-
-          <View style={styles.statsRow}>
-            <View style={styles.statItem}>
-              <AppText variant="caption" color={WT.colors.textMuted}>Reps</AppText>
-              <AppText variant="h3" color={WT.colors.textDark}>{repCount}</AppText>
-            </View>
-            <View style={styles.statItem}>
-              <AppText variant="caption" color={WT.colors.textMuted}>Checkpoint</AppText>
-              <AppText variant="h3" color={WT.colors.textDark}>{checkpoint}</AppText>
-            </View>
-            <View style={styles.statItem}>
-              <AppText variant="caption" color={WT.colors.textMuted}>Aligned</AppText>
-              <AppText variant="h3" color={isAligned ? WT.colors.success : WT.colors.danger}>
-                {isAligned ? 'YES' : 'NO'}
-              </AppText>
-            </View>
-          </View>
-
-          <View style={styles.divider} />
-
           <View style={styles.dropdownSection}>
             <AppText variant="caption" style={styles.sectionLabel}>EXERCISE</AppText>
             <TouchableOpacity
@@ -458,29 +443,23 @@ const GhostGuideTestScreen: React.FC = () => {
                 style={styles.actionButton}
               />
             </View>
+          </View>
 
-            <View style={styles.sliderSection}>
-              <View style={styles.sliderHeader}>
-                <AppText variant="caption" color={WT.colors.textMuted}>Frame Progress</AppText>
-                <AppText variant="caption" color={WT.colors.textMuted}>
-                  {currentFrameRef.current + 1} / {totalFrames}
-                </AppText>
-              </View>
-              <Slider
-                style={styles.slider}
-                minimumValue={0}
-                maximumValue={Math.max(0, totalFrames - 1)}
-                value={currentFrameRef.current}
-                onValueChange={handleSliderChange}
-                step={1}
-                minimumTrackTintColor={WT.colors.primary}
-                maximumTrackTintColor={WT.colors.cardBorder}
-                thumbTintColor={WT.colors.primary}
-              />
-            </View>
+          <View style={styles.divider} />
+
+          <View style={styles.formSection}>
+            <AppText variant="caption" style={styles.sectionLabel}>FORM</AppText>
+            <AppText variant="h1" color={
+              imuClassification === 'Good' ? WT.colors.success
+                : imuClassification ? WT.colors.warning
+                : WT.colors.textMuted
+            }>
+              {imuClassification || '--'}
+            </AppText>
           </View>
         </View>
       </ScrollView>
+      </View>
     </View>
   );
 };
@@ -506,20 +485,26 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     marginBottom: 4,
   },
-  skeletonContainer: {
+  body: {
     flex: 1,
+  },
+  cameraContainer: {
+    width: Dimensions.get('window').width - WT.spacing.lg * 2,
+    height: 320,
+    alignSelf: 'center',
     backgroundColor: '#000',
-    margin: WT.spacing.md,
+    marginTop: WT.spacing.md,
     borderRadius: WT.radius.md,
     overflow: 'hidden',
     borderWidth: 2,
     borderColor: WT.colors.cardBorder,
   },
-  infoOverlay: {
+  ghostRootOverlay: {
     position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
+    zIndex: 100,
+    elevation: 100,
+  },
+  infoOverlay: {
     maxHeight: '55%',
   },
   infoContent: {
@@ -599,18 +584,14 @@ const styles = StyleSheet.create({
   actionButton: {
     flex: 1,
     height: 44,
+    paddingHorizontal: 6,
   },
-  sliderSection: {
-    marginTop: WT.spacing.md,
+  playbackSection: {
+    marginBottom: WT.spacing.sm,
   },
-  sliderHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 4,
-  },
-  slider: {
-    width: '100%',
-    height: 40,
+  formSection: {
+    alignItems: 'center',
+    paddingVertical: WT.spacing.md,
   },
 });
 

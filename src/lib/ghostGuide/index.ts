@@ -13,6 +13,7 @@ export type ProcessResult = {
   currentCheckpointIndex: number
   isAligned: boolean
   repCount: number
+  deviationScore: number
 }
 
 export type RawLandmark = {
@@ -305,8 +306,8 @@ const scaleToUser = (user: Skeleton, reference: Skeleton): Skeleton => {
   return scaled
 }
 
-const checkAlignment = (user: Skeleton, ghost: Skeleton) => {
-  const keyJoints = [11, 13, 15, 23, 25, 27]
+export const checkAlignment = (user: Skeleton, ghost: Skeleton) => {
+  const keyJoints = [11, 12, 13, 14, 15, 16, 23, 24, 25, 26, 27, 28]
   let totalDist = 0
 
   for (const idx of keyJoints) {
@@ -315,7 +316,7 @@ const checkAlignment = (user: Skeleton, ghost: Skeleton) => {
     totalDist += dist3(userPoint, ghostPoint)
   }
 
-  return totalDist / keyJoints.length < 0.1
+  return totalDist / keyJoints.length < 0.15
 }
 
 const normalizeReference = (data: ReferenceData): ReferenceData => ({
@@ -446,11 +447,17 @@ export const buildGhostSkeleton = (
 
   const referencePoints = landmarksToPoints(frame, LANDMARK_COUNT)
 
-  applyShoulderAngle(ghostPoints, referencePoints, 23, 11, 13, 15)
-  applyElbowAngle(ghostPoints, referencePoints, 11, 13, 15)
+  // Mirror reference x-coordinates to normalize camera perspective.
+  // Reference frames may have been recorded with different camera mirroring
+  // (e.g. back camera vs selfie camera). Flipping x ensures arm angle
+  // directions are consistent with the user's coordinate space.
+  const mirroredRef = referencePoints.map(p => ({ ...p, x: 1 - p.x }))
 
-  applyShoulderAngle(ghostPoints, referencePoints, 24, 12, 14, 16)
-  applyElbowAngle(ghostPoints, referencePoints, 12, 14, 16)
+  applyShoulderAngle(ghostPoints, mirroredRef, 23, 11, 13, 15)
+  applyElbowAngle(ghostPoints, mirroredRef, 11, 13, 15)
+
+  applyShoulderAngle(ghostPoints, mirroredRef, 24, 12, 14, 16)
+  applyElbowAngle(ghostPoints, mirroredRef, 12, 14, 16)
 
   return { points: ghostPoints }
 }
@@ -460,13 +467,50 @@ export const processFrameWithReference = (
   referenceFrames: RawLandmarkFrame[],
   options: GhostPoseOptions = {}
 ): ProcessResult => {
-  const result = processFrame(userSkeleton)
-  result.ghostSkeleton = buildGhostSkeleton(
+  const frameIndex = options.frameIndex ?? 0
+  const rawFrame = referenceFrames[frameIndex]
+
+  if (!rawFrame) {
+    return {
+      ghostSkeleton: userSkeleton,
+      currentCheckpointIndex: 0,
+      isAligned: false,
+      repCount: 0,
+      deviationScore: 0,
+    }
+  }
+
+  const reference: ReferenceFrame = {
+    points: landmarksToPoints(rawFrame, LANDMARK_COUNT),
+  }
+
+  const scaledGhost = scaleToUser(userSkeleton, reference)
+  const alignmentDist = alignmentDistance(userSkeleton, scaledGhost)
+  const isAligned = alignmentDist < 0.15
+  const ghostSkeleton = buildGhostSkeleton(
     userSkeleton,
     referenceFrames,
     options
   )
-  return result
+
+  return {
+    ghostSkeleton,
+    currentCheckpointIndex: 0,
+    isAligned,
+    repCount: 0,
+    deviationScore: alignmentDist,
+  }
+}
+
+function alignmentDistance(user: Skeleton, ghost: Skeleton): number {
+  const keyJoints = [11, 12, 13, 14, 15, 16, 23, 24, 25, 26, 27, 28]
+  let totalDist = 0
+  for (const idx of keyJoints) {
+    const userPoint = ensurePoint(user.points, idx)
+    const ghostPoint = ensurePoint(ghost.points, idx)
+    totalDist += dist3(userPoint, ghostPoint)
+  }
+  return totalDist / keyJoints.length
 }
 
 export const createReferenceFromFrames = (
@@ -514,6 +558,7 @@ export const processFrame = (userSkeleton: Skeleton): ProcessResult => {
       currentCheckpointIndex: 0,
       isAligned: false,
       repCount: referenceData?.rep_count ?? 0,
+      deviationScore: 0,
     }
   }
 
@@ -528,6 +573,7 @@ export const processFrame = (userSkeleton: Skeleton): ProcessResult => {
     currentCheckpointIndex: referenceData.current_checkpoint_idx ?? 0,
     isAligned,
     repCount: referenceData.rep_count ?? 0,
+    deviationScore: alignmentDistance(userSkeleton, scaledGhost),
   }
 }
 
@@ -568,6 +614,18 @@ export const processLandmarksBufferWithReference = (
   options: GhostPoseOptions = {},
   landmarkCount = 33
 ): ProcessResult | null => {
+  if (buffer.length !== landmarkCount * 4) return null
+
+  // Check visibility of key upper-body landmarks to skip processing
+  // when no person is actually detected (prevents random deviation scores).
+  const keyIndices = [11, 12, 23, 24]
+  let visibleCount = 0
+  for (const idx of keyIndices) {
+    const vis = buffer[idx * 4 + 3]
+    if (typeof vis === 'number' && vis >= 0.5) visibleCount++
+  }
+  if (visibleCount < 3) return null
+
   const skeleton = skeletonFromLandmarksBuffer(buffer, landmarkCount)
   if (!skeleton) return null
 
@@ -575,6 +633,7 @@ export const processLandmarksBufferWithReference = (
 }
 
 export type GhostGuideAPI = {
+  checkAlignment: typeof checkAlignment
   createReferenceFromFrames: typeof createReferenceFromFrames
   loadReference: typeof loadReference
   setReferenceFrameIndex: typeof setReferenceFrameIndex
@@ -586,6 +645,7 @@ export type GhostGuideAPI = {
 }
 
 export const GhostGuideCore: GhostGuideAPI = {
+  checkAlignment,
   createReferenceFromFrames,
   loadReference,
   setReferenceFrameIndex,
