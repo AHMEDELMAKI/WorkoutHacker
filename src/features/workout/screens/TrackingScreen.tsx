@@ -452,62 +452,6 @@ const MuscleNotice = React.memo(() => {
   );
 });
 
-const FatigueDiagnosticsCard = React.memo(() => {
-  const detectedExercise = useAiStore(s => s.detectedExercise);
-  const fatigueLevel = useAiStore(s => s.fatigueLevel);
-  const fatigueConfidence = useAiStore(s => s.fatigueConfidence);
-  const emgBufferLength = useAiStore(s => s.debugEmgBufferLength);
-  const lastPredictTime = useAiStore(s => s.debugLastPredictTime);
-  const classifierMuscle = useAiStore(s => s.debugClassifierMuscle);
-
-  const isPredicting = emgBufferLength >= 500 && classifierMuscle && classifierMuscle !== 'NONE';
-
-  return (
-    <View style={styles.debugCard}>
-      <View style={styles.debugHeader}>
-        <Ionicons name="pulse-outline" size={16} color="#FF9F43" />
-        <Text style={styles.debugTitle}>FATIGUE PIPELINE DIAGNOSTICS</Text>
-      </View>
-      
-      <View style={styles.debugRow}>
-        <Text style={styles.debugLabel}>EMG Buffer Count:</Text>
-        <Text style={[styles.debugValue, { color: emgBufferLength > 0 ? '#6BCB77' : '#FF6B6B' }]}>
-          {emgBufferLength} samples {emgBufferLength < 500 ? `(Calibrating: ${Math.round((emgBufferLength / 500) * 100)}%)` : ''}
-        </Text>
-      </View>
-
-      <View style={styles.debugRow}>
-        <Text style={styles.debugLabel}>Target Muscle:</Text>
-        <Text style={[styles.debugValue, { color: '#4D96FF', fontWeight: 'bold' }]}>
-          {classifierMuscle || 'NONE / INACTIVE'}
-        </Text>
-      </View>
-
-      <View style={styles.debugRow}>
-        <Text style={styles.debugLabel}>Prediction Flow:</Text>
-        <Text style={[styles.debugValue, { color: isPredicting ? '#6BCB77' : '#FF6B6B' }]}>
-          {isPredicting ? 'RUNNING / ACTIVE' : emgBufferLength < 500 && emgBufferLength > 0 ? 'CALIBRATING BASELINE' : 'WAITING FOR DATA'}
-        </Text>
-      </View>
-
-      <View style={styles.debugRow}>
-        <Text style={styles.debugLabel}>Last Inference:</Text>
-        <Text style={styles.debugValue}>{lastPredictTime || 'N/A'}</Text>
-      </View>
-
-      <View style={styles.debugRow}>
-        <Text style={styles.debugLabel}>Output Level:</Text>
-        <Text style={[
-          styles.debugValue,
-          { color: fatigueLevel === 'LOW' ? '#6BCB77' : fatigueLevel === 'MEDIUM' ? '#FFD93D' : '#FF6B6B', fontWeight: 'bold' }
-        ]}>
-          {fatigueLevel} ({Math.round(fatigueConfidence * 100)}% Conf)
-        </Text>
-      </View>
-    </View>
-  );
-});
-
 const LiveAnalysis = React.memo(() => {
   const reps = useAiStore(s => s.reps);
   const formScore = useAiStore(s => s.formScore);
@@ -961,7 +905,6 @@ const TrackingScreen: React.FC<Props> = ({ route, navigation }) => {
             <LiveAnalysis />
           </View>
 
-          <FatigueDiagnosticsCard />
 
           <View style={styles.btnRow}>
             <TouchableOpacity
