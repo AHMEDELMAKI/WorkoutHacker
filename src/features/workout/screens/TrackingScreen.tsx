@@ -10,7 +10,7 @@ import { speak } from '../../../services/ttsService';
 import { useWorkoutStore } from '../../../store/workoutStore';
 import { useAiStore } from '../../../store/aiStore';
 import { useAiPipeline, muscleForExercise } from '../../../hooks/useAiPipeline';
-import { useEMGPackets, useWiFiSensorStatus, isEMGPacket } from '@workout-hacker/esp-connection';
+import { useEMGPackets, useIMUPackets, useWiFiSensorStatus, isEMGPacket } from '@workout-hacker/esp-connection';
 import {
   Alert,
   Animated,
@@ -515,6 +515,7 @@ const LiveAnalysis = React.memo(() => {
   const fatigueLevel = useAiStore(s => s.fatigueLevel);
   const fatigueConfidence = useAiStore(s => s.fatigueConfidence);
   const detectedExercise = useAiStore(s => s.detectedExercise);
+  const imuClassification = useAiStore(s => s.imuClassification);
   const caloriesBurned = useWorkoutStore(s => s.caloriesBurned);
 
   const fatigueColor = fatigueLevel === 'LOW' ? WT.colors.success
@@ -527,7 +528,7 @@ const LiveAnalysis = React.memo(() => {
       {[
         { label: 'Reps', value: `${reps}`, color: WT.colors.primary },
         { label: 'Exercise', value: (detectedExercise || 'Detecting...').replace(/_/g, ' '), color: WT.colors.primary },
-        { label: 'Form Score', value: `${formScore}%`, color: formScore > 80 ? WT.colors.success : WT.colors.warning },
+        { label: 'Form', value: detectedExercise ? (imuClassification || `${formScore}%`) : 'Waiting...', color: formScore > 80 ? WT.colors.success : WT.colors.warning },
         { label: 'Tempo', value: tempo ? `${tempo}` : 'Analyzing...', color: WT.colors.primary },
         { label: 'Fatigue', value: fatigueLevel, color: fatigueColor },
         { label: 'Burned', value: `${Math.round(caloriesBurned)} kcal`, color: WT.colors.danger },
@@ -698,7 +699,7 @@ const TrackingScreen: React.FC<Props> = ({ route, navigation }) => {
   const poseLandmarksRef = useRef<any>(null);
 
   // AI Pipeline Hook
-  const { processBuffer, feedEMG } = useAiPipeline();
+  const { processBuffer, feedEMG, feedIMU } = useAiPipeline();
 
   // EMG Sensor Integration
   const sensorStatus = useWiFiSensorStatus();
@@ -707,6 +708,10 @@ const TrackingScreen: React.FC<Props> = ({ route, navigation }) => {
     if (rawValues && rawValues.length > 0) {
       feedEMG(rawValues);
     }
+  });
+
+  useIMUPackets((packet: any) => {
+    feedIMU(packet);
   });
 
   // On mount: prepare session
@@ -883,7 +888,7 @@ const TrackingScreen: React.FC<Props> = ({ route, navigation }) => {
                 <View style={styles.metricsOverlay} pointerEvents="none">
                   <OverlayMetric label="Reps" selector={s => s.reps} />
                   <OverlayMetric label="Tempo" selector={s => s.tempo || 'Analyzing...'} />
-                  <OverlayMetric label="Form" selector={s => s.formScore} suffix="%" />
+                  <OverlayMetric label="Form" selector={s => s.detectedExercise ? (s.imuClassification || (s.formScore + '%')) : 'Waiting...'} />
                   <OverlayMetric label="Fatigue" selector={s => s.fatigueLevel} />
                   <OverlayMetric label="Confidence" selector={s => `${Math.round(s.fatigueConfidence * 100)}`} suffix="%" />
                   <OverlayMetric label="Type" selector={s => (s.detectedExercise || 'Detecting...').replace('_', ' ')} />

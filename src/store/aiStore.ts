@@ -21,6 +21,7 @@ interface AiState {
     tempo: string | null;
     tempoQuality: number;
     isProcessing: boolean;
+    imuClassification: string | null;
 
     // Ghost Guide state
     guideOverlay: PoseLandmark[] | null;
@@ -41,6 +42,7 @@ interface AiState {
         tempo?: string;
         tempoQuality?: number;
         exercise?: string;
+        imuClassification?: string | null;
         debugEmgBufferLength?: number;
         debugLastPredictTime?: string | null;
         debugClassifierMuscle?: string | null;
@@ -60,6 +62,7 @@ export const useAiStore = create<AiState>((set) => ({
     tempo: null,
     tempoQuality: 0,
     isProcessing: false,
+    imuClassification: null,
     guideOverlay: null,
     deviationScore: 0,
 
@@ -78,6 +81,7 @@ export const useAiStore = create<AiState>((set) => ({
         tempo: data.tempo ?? state.tempo,
         tempoQuality: data.tempoQuality ?? state.tempoQuality,
         detectedExercise: data.exercise ?? state.detectedExercise,
+        imuClassification: data.imuClassification !== undefined ? data.imuClassification : state.imuClassification,
         debugEmgBufferLength: data.debugEmgBufferLength ?? state.debugEmgBufferLength,
         debugLastPredictTime: data.debugLastPredictTime ?? state.debugLastPredictTime,
         debugClassifierMuscle: data.debugClassifierMuscle ?? state.debugClassifierMuscle,
@@ -100,6 +104,7 @@ export const useAiStore = create<AiState>((set) => ({
         tempo: null,
         tempoQuality: 0,
         isProcessing: false,
+        imuClassification: null,
         guideOverlay: null,
         deviationScore: 0,
         debugEmgBufferLength: 0,

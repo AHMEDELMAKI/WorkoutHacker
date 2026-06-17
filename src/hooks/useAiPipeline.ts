@@ -6,6 +6,7 @@ import { createRepCounter } from 'react-native-rep-counter';
 import { tempoClassifier } from 'react-native-tempo-classifier';
 import { GhostGuideCore } from 'react-native-ghost-guide';
 import { FatigueClassifier } from 'react-native-fatigue-classifier';
+import IMUFormAnalysis from 'imuformanalysis';
 
 import bicepCurlFrames from '../assets/ghost-guide/bicep_curl_frames.json';
 import shoulderPressFrames from '../assets/ghost-guide/shoulder_press_frames.json';
@@ -25,6 +26,7 @@ const LANDMARK_COUNT = 33;
 const VALUES_PER_LANDMARK = 4;
 
 const FATIGUE_PREDICT_INTERVAL = 3000;
+const IMU_PREDICT_INTERVAL = 1000;
 const MAX_EMG_BUFFER = 10000;
 const PREDICTION_WINDOW_SEC = 8;
 const EMG_FS = 50;
@@ -61,7 +63,7 @@ const processBuffer = (
 
     let deviation = 0;
     let ghostSkeleton = null;
-    let formScore = 100;
+    let visionFormScore: number | undefined = undefined;
 
     const activeExerciseName = currentExerciseName?.toLowerCase() || exercise?.toLowerCase() || '';
 
@@ -81,7 +83,7 @@ const processBuffer = (
         if (res) {
             deviation = res.deviationScore;
             ghostSkeleton = res.ghostSkeleton;
-            formScore = Math.max(0, Math.min(100, 100 - (deviation * 150)));
+            visionFormScore = Math.max(0, Math.min(100, 100 - (deviation * 150)));
         }
     }
 
@@ -92,7 +94,7 @@ const processBuffer = (
 
     updateInference({
         reps,
-        formScore,
+        ...(visionFormScore !== undefined ? { formScore: visionFormScore } : {}),
         tempo,
         tempoQuality: quality,
         exercise: exercise ?? undefined,
@@ -157,7 +159,28 @@ export const useAiPipeline = () => {
     const emgBufferRef = useRef<number[]>([]);
     const currentMuscleRef = useRef<'biceps' | 'triceps' | null>(null);
     const fatigueTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+    const imuTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
     const streamingInitializedRef = useRef(false);
+
+    const imuClassifierReady = useRef(false);
+    const currentImuCategoryRef = useRef<'bicep' | 'shoulder' | 'lateral' | null>(null);
+    const imuBufferRef = useRef<number[]>([]);
+
+    const loadIMUModel = useCallback(async (category: 'bicep' | 'shoulder' | 'lateral') => {
+        if (currentImuCategoryRef.current === category && imuClassifierReady.current) {
+            return;
+        }
+
+        try {
+            await IMUFormAnalysis.initialize(category);
+            imuClassifierReady.current = true;
+            currentImuCategoryRef.current = category;
+            console.log(`[IMUFormAnalysis] Initialized for ${category}`);
+        } catch (e) {
+            console.error(`[IMUFormAnalysis] Failed to initialize for ${category}:`, e);
+            imuClassifierReady.current = false;
+        }
+    }, []);
 
     const loadFatigueModel = useCallback(async (muscle: 'biceps' | 'triceps') => {
         if (classifierRef.current && currentMuscleRef.current === muscle && classifierReady.current) {
@@ -211,7 +234,9 @@ export const useAiPipeline = () => {
     const feedEMG = useCallback((rawValues: number[]) => {
         if (!rawValues.length) return;
 
-        const rmsValue = rawValues[2];
+        // More robust value selection: Prefer index 2 (often RMS), fallback to index 0
+        const rmsValue = rawValues.length >= 3 ? rawValues[2] : rawValues[0];
+
         if (rmsValue == null || (typeof rmsValue === 'number' && (isNaN(rmsValue) || !isFinite(rmsValue)))) {
             return;
         }
@@ -240,6 +265,33 @@ export const useAiPipeline = () => {
             debugEmgBufferLength: buffer.length,
             debugClassifierMuscle: currentMuscleRef.current || 'NONE',
         });
+    }, []);
+
+    const feedIMU = useCallback((packet: any) => {
+        if (!packet) return;
+
+        // Construct the flat data array for this sample
+        // Expected format: [timestamp, roll, pitch, yaw, accX, accY, accZ, gyroX, gyroY, gyroZ]
+        const sample = [
+            packet.timestamp,
+            packet.roll,
+            packet.pitch,
+            packet.yaw,
+            packet.ax ?? 0,
+            packet.ay ?? 0,
+            packet.az ?? 0,
+            packet.gx ?? 0,
+            packet.gy ?? 0,
+            packet.gz ?? 0
+        ];
+
+        const buffer = imuBufferRef.current;
+        buffer.push(...sample);
+
+        // Keep buffer size limited (approx 10-20 seconds of data)
+        if (buffer.length >= 5000) {
+            buffer.splice(0, sample.length);
+        }
     }, []);
 
     const predictFatigue = useCallback(() => {
@@ -293,6 +345,7 @@ export const useAiPipeline = () => {
         if (buffer.length < 12) return;
         const lastWindow = buffer.slice(-12);
 
+
         try {
             const result = classifierRef.current.predictStreaming(lastWindow);
 
@@ -311,6 +364,57 @@ export const useAiPipeline = () => {
         }
     }, [loadFatigueModel]);
 
+    const predictIMUForm = useCallback(async () => {
+        const { currentExercise } = useWorkoutStore.getState();
+        const detectedExercise = useAiStore.getState().detectedExercise;
+        const activeExerciseName = detectedExercise || currentExercise?.exercise;
+
+        if (!activeExerciseName) return;
+
+        // Map exercise name to IMU category
+        const name = activeExerciseName.toLowerCase();
+        let category: 'bicep' | 'shoulder' | 'lateral' | null = null;
+        if (name.includes('bicep') || name.includes('curl')) category = 'bicep';
+        else if (name.includes('shoulder') || name.includes('press')) category = 'shoulder';
+        else if (name.includes('lateral') || name.includes('raise')) category = 'lateral';
+
+        if (!category) return;
+
+        if (category !== currentImuCategoryRef.current) {
+            imuClassifierReady.current = false;
+            useAiStore.getState().updateInference({ imuClassification: null });
+            loadIMUModel(category);
+            return;
+        }
+
+        if (!imuClassifierReady.current) return;
+
+        const buffer = imuBufferRef.current;
+        if (buffer.length < 50) return; // Minimum data points to try processing
+
+        try {
+            // IMUFormAnalysis.processDataBatch expects a flat array of IMU data
+            // Usually [timestamp, roll, pitch, yaw, accX, accY, accZ, gyroX, gyroY, gyroZ, ...]
+            // We'll pass the current buffer and then clear it or manage it
+            const result = await IMUFormAnalysis.processDataBatch(buffer);
+
+            if (result && result !== "") {
+                console.log("[IMUFormAnalysis] Rep classified as:", result);
+
+                const updateInference = useAiStore.getState().updateInference;
+
+                updateInference({
+                    imuClassification: result,
+                });
+
+                // Clear buffer after a successful classification of a rep
+                imuBufferRef.current = [];
+            }
+        } catch (e) {
+            console.error('[IMUFormAnalysis] Prediction error:', e);
+        }
+    }, [loadIMUModel]);
+
     useEffect(() => {
         if (!hasLoadedModel.current) {
             exerciseRecognition.loadModelFromAsset('exercise_classifier_rf.json');
@@ -322,9 +426,15 @@ export const useAiPipeline = () => {
         repCounterRef.current = createRepCounter();
         repCounterRef.current.startSession({ exercise: null });
 
+        imuClassifierReady.current = false;
+
         fatigueTimerRef.current = setInterval(() => {
             predictFatigue();
         }, FATIGUE_PREDICT_INTERVAL);
+
+        imuTimerRef.current = setInterval(() => {
+            predictIMUForm();
+        }, IMU_PREDICT_INTERVAL);
 
         return () => {
             if (repCounterRef.current) {
@@ -333,15 +443,19 @@ export const useAiPipeline = () => {
             if (fatigueTimerRef.current) {
                 clearInterval(fatigueTimerRef.current);
             }
+            if (imuTimerRef.current) {
+                clearInterval(imuTimerRef.current);
+            }
             if (classifierRef.current) {
                 classifierRef.current.unload();
                 classifierRef.current = null;
                 classifierReady.current = false;
                 streamingInitializedRef.current = false;
             }
+            imuClassifierReady.current = false;
             exerciseRecognition.stopSession();
         };
-    }, [predictFatigue]);
+    }, [predictFatigue, predictIMUForm]);
 
     return {
         processBuffer: (buffer: Float32Array) => {
@@ -349,5 +463,6 @@ export const useAiPipeline = () => {
             processBuffer(buffer, repCounterRef.current, currentExercise?.exercise);
         },
         feedEMG,
+        feedIMU,
     };
 };
