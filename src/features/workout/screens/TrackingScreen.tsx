@@ -446,7 +446,7 @@ const MuscleNotice = React.memo(() => {
     <View style={styles.muscleNoticeBadge}>
       <Ionicons name="information-circle-outline" size={16} color={WT.colors.textMuted} />
       <Text style={[styles.sensorText, { color: WT.colors.textMuted }]}>
-        {muscle ? `Wear EMG on ${muscle.toUpperCase()}` : 'No Muscle Detected'}
+        {muscle ? `Wear EMG on ${muscle.toUpperCase()}` : 'Waiting for Exercise'}
       </Text>
     </View>
   );
@@ -588,9 +588,27 @@ const getPlacementForPrediction = (predictedExercise: string): { muscleName: str
 
 const EMGNoticeCard: React.FC<{ initialTargetMuscles: string }> = React.memo(({ initialTargetMuscles }) => {
   const detectedExercise = useAiStore(s => s.detectedExercise);
-  const placement = detectedExercise
-    ? getPlacementForPrediction(detectedExercise)
-    : getEMGPlacementText(initialTargetMuscles);
+
+  if (!detectedExercise) {
+    return (
+      <View style={styles.emgNoticeCard}>
+        <View style={styles.emgNoticeIconContainer}>
+          <Ionicons name="pulse" size={24} color={WT.colors.warning} />
+        </View>
+        <View style={styles.emgNoticeTextContainer}>
+          <Text style={styles.emgNoticeTitle}>EMG Wear Placement</Text>
+          <Text style={styles.emgNoticeMessage}>
+            Waiting for Exercise
+          </Text>
+          <Text style={styles.emgNoticeSub}>
+            Start exercising to detect the target muscle group for EMG placement.
+          </Text>
+        </View>
+      </View>
+    );
+  }
+
+  const placement = getPlacementForPrediction(detectedExercise);
 
   return (
     <View style={styles.emgNoticeCard}>
@@ -830,7 +848,6 @@ const TrackingScreen: React.FC<Props> = ({ route, navigation }) => {
                 {/* Ghost Skeleton Overlay (hidden) */}
 
                 <View style={styles.metricsOverlay} pointerEvents="none">
-                  <OverlayMetric label="Reps" selector={s => s.reps} />
                   <OverlayMetric label="Tempo" selector={s => s.tempo || 'Analyzing...'} />
                   <OverlayMetric label="Form" selector={s => s.detectedExercise ? (s.imuClassification || (s.formScore + '%')) : 'Waiting...'} />
                   <OverlayMetric label="Fatigue" selector={s => s.fatigueLevel} />
@@ -849,9 +866,6 @@ const TrackingScreen: React.FC<Props> = ({ route, navigation }) => {
                 {/* Prominent Overlay HUDs */}
                 <View style={styles.tempoHud} pointerEvents="none">
                   <TempoOverlay />
-                </View>
-                <View style={styles.repOverlay} pointerEvents="none">
-                  <RepOverlay />
                 </View>
 
                 <TouchableOpacity
