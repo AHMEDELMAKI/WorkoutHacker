@@ -28,14 +28,7 @@ class ErrorBoundary extends React.Component<
 
   render() {
     if (this.state.hasError) {
-      return (
-        <SafeAreaView style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'red' }}>
-          <Text style={{ color: 'white', fontSize: 18 }}>App Crashed!</Text>
-          <Text style={{ color: 'white', marginTop: 10 }}>
-            {this.state.error?.message || 'Unknown error'}
-          </Text>
-        </SafeAreaView>
-      );
+      return this.props.children;
     }
 
     return this.props.children;
@@ -97,6 +90,7 @@ const App = () => {
     </>
   );
 
+  /*
   // If a global JS error occurred, show an explicit error screen so we can capture details
   if (globalError) {
     return (
@@ -106,6 +100,7 @@ const App = () => {
       </SafeAreaView>
     );
   }
+  */
 
   React.useEffect(() => {
     const unsubscribeData = WiFiSensorService.subscribeSensorData((packet) => {

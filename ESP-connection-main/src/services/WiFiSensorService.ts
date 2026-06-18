@@ -63,20 +63,15 @@ class WiFiSensorServiceImpl {
    * Test if ESP32 is reachable at baseUrl
    */
   private async testConnection(): Promise<boolean> {
-    let timeoutId: ReturnType<typeof setTimeout> | null = null;
     try {
       console.debug('[WiFiSensorService] Testing connection to', this.baseUrl);
-      const controller = new AbortController();
-      timeoutId = setTimeout(() => controller.abort(), 3000);
-      
+
       // Try root endpoint first
-      const response = await fetch(this.baseUrl, { signal: controller.signal });
-      if (timeoutId) clearTimeout(timeoutId);
+      const response = await fetch(this.baseUrl);
       
       console.debug('[WiFiSensorService] Root path response:', response.status);
       return response.ok || response.status < 500;
     } catch (error) {
-      if (timeoutId) clearTimeout(timeoutId);
       console.warn('[WiFiSensorService] Connection test failed:', error instanceof Error ? error.message : String(error));
       return false;
     }
@@ -119,13 +114,8 @@ class WiFiSensorServiceImpl {
       try {
         const url = `${this.baseUrl}/data`;
         console.debug('[WiFiSensorService] polling', url);
-        
-        // Add 5-second timeout to fetch
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 5000);
-        
+
         const response = await fetch(url, { 
-          signal: controller.signal,
           headers: {
             'Accept': 'text/plain',
             'Connection': 'keep-alive',
@@ -135,8 +125,7 @@ class WiFiSensorServiceImpl {
           method: 'GET',
           credentials: 'omit',
         });
-        clearTimeout(timeoutId);
-        
+
         console.debug('[WiFiSensorService] fetch response ok?', response.ok, 'status', response.status);
         if (!response.ok) {
           throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -192,8 +181,6 @@ class WiFiSensorServiceImpl {
           // React Native specific error messages
           if (errMsg.includes('Failed to fetch') || errMsg.includes('Network request failed')) {
             errMsg = `Cannot reach ESP32 at ${this.baseUrl}. Make sure:\n1. Phone is connected to ESP32 WiFi\n2. ESP32 is powered on and HTTP server is running\n3. IP address is correct`;
-          } else if (errMsg === 'The operation was aborted' || errMsg.includes('Abort')) {
-            errMsg = `Request timeout (5s) - ESP32 not responding at ${this.baseUrl}`;
           } else if (errMsg.includes('ECONNREFUSED') || errMsg.includes('unreachable')) {
             errMsg = `Connection refused - ESP32 is not accepting connections on ${this.baseUrl}`;
           }
@@ -291,10 +278,7 @@ class WiFiSensorServiceImpl {
     // Test root
     let rootUrl = false;
     try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 3000);
-      const response = await fetch(this.baseUrl, { signal: controller.signal });
-      clearTimeout(timeoutId);
+      const response = await fetch(this.baseUrl);
       rootUrl = response.ok || response.status < 500;
       console.log('[WiFiSensorService] Root URL:', response.status, rootUrl ? '✓' : '✗');
     } catch (error) {
@@ -305,10 +289,7 @@ class WiFiSensorServiceImpl {
     // Test /data endpoint
     let dataEndpoint = false;
     try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 3000);
-      const response = await fetch(`${this.baseUrl}/data`, { signal: controller.signal });
-      clearTimeout(timeoutId);
+      const response = await fetch(`${this.baseUrl}/data`);
       dataEndpoint = response.ok || response.status < 500;
       const content = await response.text();
       console.log('[WiFiSensorService] /data endpoint:', response.status, dataEndpoint ? '✓' : '✗', 'content length:', content.length);

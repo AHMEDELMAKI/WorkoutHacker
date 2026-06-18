@@ -151,6 +151,107 @@ export function muscleForExercise(exerciseName: string | undefined | null): 'bic
     return null;
 }
 
+export interface RawImuPacket {
+    roll: number;   // degrees
+    pitch: number;  // degrees
+    yaw: number;    // degrees
+
+    accX: number;
+    accY: number;
+    accZ: number;
+
+    gyroX: number;  // deg/s
+    gyroY: number;
+    gyroZ: number;
+
+    magX: number;
+    magY: number;
+    magZ: number;
+}
+
+export interface PreprocessedImu {
+    DMRoll: number;
+    DMPitch: number;
+    DMYaw: number;
+    DMRotX: number;
+    DMRotY: number;
+    DMRotZ: number;
+    AccelroX: number;
+    AccelroY: number;
+    AccelroZ: number;
+}
+
+const DEG_TO_RAD = Math.PI / 180;
+const ACC_SCALE = 16384; // ±2g
+const G_TO_MS2 = 9.80665;
+
+export function convertImuPacket(
+    packet: RawImuPacket
+): PreprocessedImu {
+    return {
+        DMRoll: packet.roll * DEG_TO_RAD,
+        DMPitch: packet.pitch * DEG_TO_RAD,
+        DMYaw: packet.yaw * DEG_TO_RAD,
+
+        DMRotX: packet.gyroX,
+        DMRotY: packet.gyroY,
+        DMRotZ: packet.gyroZ,
+
+        AccelroX: (packet.accX / ACC_SCALE) * G_TO_MS2,
+        AccelroY: (packet.accY / ACC_SCALE) * G_TO_MS2,
+        AccelroZ: (packet.accZ / ACC_SCALE) * G_TO_MS2,
+    };
+}
+
+/**
+ * Preprocess IMU data before model inference.
+ * data: flat array [timestamp, roll, pitch, yaw, ax, ay, az, gx, gy, gz, mx, my, mz, ...]
+ */
+const preprocessIMUData = (data: number[]): number[] => {
+    const result: number[] = [];
+    const sampleSize = 13; // timestamp + 12 IMU values
+
+    for (let i = 0; i < data.length; i += sampleSize) {
+        if (i + sampleSize > data.length) break;
+
+        const raw: RawImuPacket = {
+            roll: data[i + 1],
+            pitch: data[i + 2],
+            yaw: data[i + 3],
+            accX: data[i + 4],
+            accY: data[i + 5],
+            accZ: data[i + 6],
+            gyroX: data[i + 7],
+            gyroY: data[i + 8],
+            gyroZ: data[i + 9],
+            magX: data[i + 10],
+            magY: data[i + 11],
+            magZ: data[i + 12],
+        };
+
+        const p = convertImuPacket(raw);
+
+        // We MUST return exactly 13 values per sample to match Rust's COLS constant (node_modules/imuformanalysis/rust/bicep_rf/src/lib.rs)
+        result.push(
+            data[i],      // 0: timestamp
+            p.DMRoll,     // 1: roll (converted to rad)
+            p.DMPitch,    // 2: pitch (converted to rad)
+            p.DMYaw,      // 3: yaw (converted to rad)
+            p.AccelroX,   // 4: accX
+            p.AccelroY,   // 5: accY
+            p.AccelroZ,   // 6: accZ
+            p.DMRotX,     // 7: gyroX (converted to rad/s)
+            p.DMRotY,     // 8: gyroY (converted to rad/s)
+            p.DMRotZ,     // 9: gyroZ (converted to rad/s)
+            raw.magX,     // 10: magX
+            raw.magY,     // 11: magY
+            raw.magZ      // 12: magZ
+        );
+    }
+
+    return result;
+};
+
 export const useAiPipeline = () => {
     const repCounterRef = useRef<any>(null);
     const hasLoadedModel = useRef(false);
@@ -271,7 +372,7 @@ export const useAiPipeline = () => {
         if (!packet) return;
 
         // Construct the flat data array for this sample
-        // Expected format: [timestamp, roll, pitch, yaw, accX, accY, accZ, gyroX, gyroY, gyroZ]
+        // Expected format: [timestamp, roll, pitch, yaw, accX, accY, accZ, gyroX, gyroY, gyroZ, magX, magY, magZ]
         const sample = [
             packet.timestamp,
             packet.roll,
@@ -282,7 +383,10 @@ export const useAiPipeline = () => {
             packet.az ?? 0,
             packet.gx ?? 0,
             packet.gy ?? 0,
-            packet.gz ?? 0
+            packet.gz ?? 0,
+            packet.mx ?? 0,
+            packet.my ?? 0,
+            packet.mz ?? 0
         ];
 
         const buffer = imuBufferRef.current;
@@ -393,10 +497,13 @@ export const useAiPipeline = () => {
         if (buffer.length < 50) return; // Minimum data points to try processing
 
         try {
+            // Preprocess the buffer before sending to model
+            const processedBuffer = preprocessIMUData(buffer);
+
             // IMUFormAnalysis.processDataBatch expects a flat array of IMU data
             // Usually [timestamp, roll, pitch, yaw, accX, accY, accZ, gyroX, gyroY, gyroZ, ...]
             // We'll pass the current buffer and then clear it or manage it
-            const result = await IMUFormAnalysis.processDataBatch(buffer);
+            const result = await IMUFormAnalysis.processDataBatch(processedBuffer);
 
             if (result && result !== "") {
                 console.log("[IMUFormAnalysis] Rep classified as:", result);
