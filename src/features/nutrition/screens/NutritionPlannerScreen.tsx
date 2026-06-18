@@ -3,7 +3,6 @@ import {
   LogBox,
   Modal,
   Platform,
-  SafeAreaView,
   ScrollView,
   StatusBar,
   StyleSheet,
@@ -11,36 +10,37 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import Clipboard from '@react-native-clipboard/clipboard';
 import { WT } from '../../../theme/workoutTheme';
-import { generatePlan } from '../../../lib/workout-planner';
-import type { WorkoutPlan, WorkoutRequest } from '../../../lib/workout-planner/shared/types';
+import { generatePlan } from '../../../lib/nutrition-planner';
+import type { NutritionPlan, NutritionRequest } from '../../../lib/nutrition-planner';
 import { userApi, UserProfile } from '../../../services/api/user.api';
 import AppText from '../../../components/AppText';
 import AppButton from '../../../components/AppButton';
 
-type Goal = 'strength' | 'hypertrophy' | 'other';
-type Level = 'beginner' | 'intermediate' | 'advanced';
-
+type Goal = 'weight_loss' | 'muscle_gain' | 'maintenance' | 'general_health' | 'other';
+type ActivityLevel = 'sedentary' | 'lightly_active' | 'moderately_active' | 'very_active';
 
 const API_BASE_URL = 'https://64.226.123.63.nip.io';
-const API_ENDPOINT = '/api/workout';
+const API_ENDPOINT = '/api/nutrition';
 let logRoutingInstalled = false;
 
-function WorkoutPlannerScreen() {
-  const [programDurationWeeks, setProgramDurationWeeks] = useState('');
-  const [equipmentAvailable, setEquipmentAvailable] = useState('barbell, dumbbell, bodyweight');
-  const [trainingAge, setTrainingAge] = useState('');
-  const [injuries, setInjuries] = useState('');
-  const [mobilityDifficulties, setMobilityDifficulties] = useState('');
-  const [currentRPE, setCurrentRPE] = useState('');
+function NutritionPlannerScreen() {
+  const [planDurationWeeks, setPlanDurationWeeks] = useState('');
+  const [preferredFoods, setPreferredFoods] = useState('chicken breast, eggs, rice, oats, broccoli');
+  const [mealsPerDay, setMealsPerDay] = useState('');
+  const [allergies, setAllergies] = useState('');
+  const [intolerances, setIntolerances] = useState('');
+  const [dietType, setDietType] = useState('');
+  const [currentCalorieIntake, setCurrentCalorieIntake] = useState('');
   const [naturalLanguageRequest, setNaturalLanguageRequest] = useState('');
   const [currentPlanMode, setCurrentPlanMode] = useState<'none' | 'latest'>('none');
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [plan, setPlan] = useState<WorkoutPlan | null>(null);
+  const [plan, setPlan] = useState<NutritionPlan | null>(null);
   const [copied, setCopied] = useState(false);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [apiKey, setApiKey] = useState('');
@@ -49,28 +49,16 @@ function WorkoutPlannerScreen() {
   const daysPerWeek = profile?.workoutDaysPerWeek ?? 4;
   const goal: Goal = (() => {
     const pg = profile?.workoutPrimaryGoal;
-    if (pg === 'strength' || pg === 'hypertrophy') return pg;
-    if (pg) return 'other';
-    if (profile?.fitnessGoals?.length) {
-      const fg = profile.fitnessGoals[0];
-      if (fg.includes('strength')) return 'strength';
-      if (fg.includes('muscle')) return 'hypertrophy';
-    }
-    return 'strength';
+    if (pg === 'strength') return 'muscle_gain';
+    if (pg === 'hypertrophy') return 'muscle_gain';
+    return 'general_health';
   })();
-  const customPrimaryGoal = (() => {
-    if (goal !== 'other') return '';
-    const pg = profile?.workoutPrimaryGoal;
-    if (pg && pg !== 'strength' && pg !== 'hypertrophy') return pg;
-    if (profile?.fitnessGoals?.length) return profile.fitnessGoals[0].replace(/_/g, ' ');
-    return '';
-  })();
-  const trainingLevel: Level = (() => {
+  const activityLevel: ActivityLevel = (() => {
     const fl = profile?.fitnessLevel;
-    if (fl === 'athlete' || fl === 'advanced') return 'advanced';
-    if (fl === 'intermediate') return 'intermediate';
-    if (fl === 'beginner') return 'beginner';
-    return 'intermediate';
+    if (fl === 'athlete' || fl === 'advanced') return 'very_active';
+    if (fl === 'intermediate') return 'moderately_active';
+    if (fl === 'beginner') return 'lightly_active';
+    return 'moderately_active';
   })();
   const selectedGender = profile?.gender === 'male' ? 'male' : profile?.gender === 'female' ? 'female' : undefined;
   const bodyWeight = profile?.weight;
@@ -83,11 +71,10 @@ function WorkoutPlannerScreen() {
 
   const loadUserProfile = useCallback(async () => {
     try {
-      console.log('[WorkoutPlannerScreen] Loading user profile...');
       const p = await userApi.getProfile();
       if (p) setProfile(p);
     } catch (err) {
-      console.warn('[WorkoutPlannerScreen] Failed to load profile:', err);
+      console.warn('[NutritionPlannerScreen] Failed to load profile:', err);
     }
   }, []);
 
@@ -105,73 +92,66 @@ function WorkoutPlannerScreen() {
       return;
     }
 
-    const request: WorkoutRequest = {
+    const request: NutritionRequest = {
       daysPerWeek,
-      trainingLevel,
+      activityLevel,
     };
 
-    if (goal !== 'other') {
-      request.primaryGoal = goal;
-    }
+    request.primaryGoal = goal;
 
-    if (programDurationWeeks.trim()) {
-      const parsedDuration = Number(programDurationWeeks);
+    if (planDurationWeeks.trim()) {
+      const parsedDuration = Number(planDurationWeeks);
       if (!Number.isInteger(parsedDuration) || parsedDuration < 1 || parsedDuration > 52) {
-        setError('Program duration must be an integer between 1 and 52 when provided.');
+        setError('Plan duration must be an integer between 1 and 52 when provided.');
         return;
       }
-      request.programDurationWeeks = parsedDuration;
+      request.planDurationWeeks = parsedDuration;
     }
 
-    const parsedEquipment = parseList(equipmentAvailable);
-    if (parsedEquipment.length > 0) {
-      request.equipmentAvailable = parsedEquipment;
+    const parsedFoods = parseList(preferredFoods);
+    if (parsedFoods.length > 0) {
+      request.preferredFoods = parsedFoods;
     }
 
-    const demographics: NonNullable<WorkoutRequest['demographics']> = {};
+    if (mealsPerDay.trim()) {
+      const parsedMeals = Number(mealsPerDay);
+      if (!Number.isInteger(parsedMeals) || parsedMeals < 1 || parsedMeals > 8) {
+        setError('Meals per day must be an integer between 1 and 8.');
+        return;
+      }
+      request.mealsPerDay = parsedMeals;
+    }
+
+    const demographics: NonNullable<NutritionRequest['demographics']> = {};
     if (selectedGender) demographics.gender = selectedGender;
     if (bodyWeight) demographics.bodyWeight = bodyWeight;
     if (heightInCm) demographics.height = heightInCm;
     if (ageInYears) demographics.age = ageInYears;
-    if (trainingAge.trim()) {
-      const parsedTrainingAge = Number(trainingAge);
-      if (!Number.isFinite(parsedTrainingAge) || parsedTrainingAge < 0) {
-        setError('Training age must be a number greater than or equal to 0 when provided.');
-        return;
-      }
-      demographics.trainingAge = parsedTrainingAge;
-    }
     if (Object.keys(demographics).length > 0) {
       request.demographics = demographics;
     }
 
-    const limitations: NonNullable<WorkoutRequest['limitations']> = {};
-    const parsedInjuries = parseList(injuries);
-    const parsedMobility = parseList(mobilityDifficulties);
-    if (parsedInjuries.length > 0) limitations.injuries = parsedInjuries;
-    if (parsedMobility.length > 0) limitations.mobilityDifficulties = parsedMobility;
-    if (Object.keys(limitations).length > 0) {
-      request.limitations = limitations;
+    const restrictions: NonNullable<NutritionRequest['dietaryRestrictions']> = {};
+    const parsedAllergies = parseList(allergies);
+    const parsedIntolerances = parseList(intolerances);
+    if (parsedAllergies.length > 0) restrictions.allergies = parsedAllergies;
+    if (parsedIntolerances.length > 0) restrictions.intolerances = parsedIntolerances;
+    if (dietType.trim()) restrictions.dietType = dietType.trim();
+    if (Object.keys(restrictions).length > 0) {
+      request.dietaryRestrictions = restrictions;
     }
 
-    if (currentRPE.trim()) {
-      const parsedRpe = Number(currentRPE);
-      if (!Number.isFinite(parsedRpe) || parsedRpe < 1 || parsedRpe > 10) {
-        setError('Current RPE must be a number between 1 and 10 when provided.');
+    if (currentCalorieIntake.trim()) {
+      const parsedCalories = Number(currentCalorieIntake);
+      if (!Number.isFinite(parsedCalories) || parsedCalories < 100 || parsedCalories > 10000) {
+        setError('Current calorie intake must be a number between 100 and 10000 when provided.');
         return;
       }
-      request.currentRPE = parsedRpe;
+      request.currentCalorieIntake = parsedCalories;
     }
 
-    if (naturalLanguageRequest.trim() || goal === 'other') {
-      const nlParts: string[] = [];
-      if (goal === 'other') {
-        nlParts.push(`Primary goal: ${customPrimaryGoal}`);
-      }
-      if (naturalLanguageRequest.trim()) {
-        nlParts.push(naturalLanguageRequest.trim());
-      }
-      request.naturalLanguageRequest = nlParts.join('\n\n');
+    if (naturalLanguageRequest.trim()) {
+      request.naturalLanguageRequest = naturalLanguageRequest.trim();
     }
 
     if (currentPlanMode === 'latest') {
@@ -182,55 +162,55 @@ function WorkoutPlannerScreen() {
       request.currentPlan = plan;
     }
 
-    console.debug('[app] submitting workout request', request);
-
     setLoading(true);
     setError(null);
 
     try {
       const generated = await generatePlan(
-        { 
+        {
           apiBaseUrl: API_BASE_URL,
           endpointPath: API_ENDPOINT,
           headers: { 'x-api-key': key }
-        }, 
+        },
         request
       );
-      console.debug('[app] received workout plan', {
-        planName: generated.planName,
-        days: generated.days.length,
-      });
       setPlan(generated);
     } catch (e) {
-      console.error('[app] generate plan failed', e);
       setPlan(null);
       const msg = e instanceof Error ? e.message : '';
       if (msg.toLowerCase().includes('unauthorized')) {
         setApiKey('');
         setShowApiKeyModal(true);
       } else {
-        setError(msg || 'Failed to generate workout plan.');
+        setError(msg || 'Failed to generate nutrition plan.');
       }
     } finally {
       setLoading(false);
     }
   };
 
-  const formatPlanHumanReadable = (p: WorkoutPlan): string => {
+  const formatPlanHumanReadable = (p: NutritionPlan): string => {
     const lines: string[] = [];
-    lines.push(`Workout Plan: ${p.planName}`);
+    lines.push(`Nutrition Plan: ${p.planName}`);
     lines.push(`Primary Goal: ${p.primaryGoal}`);
-    lines.push(`Training Level: ${p.trainingLevel}`);
+    lines.push(`Activity Level: ${p.activityLevel}`);
     lines.push(`Days Per Week: ${p.daysPerWeek}`);
     lines.push(`Duration: ${p.durationWeeks ? `${p.durationWeeks} weeks` : 'Not specified'}`);
     lines.push('');
     lines.push(`Rationale: ${p.rationale}`);
-    lines.push(`Inter-set Recovery: ${p.interSetRecoveryPolicy}`);
     lines.push('');
 
-    if (p.progressiveOverload.length > 0) {
-      lines.push('Progressive Overload:');
-      for (const rule of p.progressiveOverload) {
+    if (p.hydrationGuidelines.length > 0) {
+      lines.push('Hydration Guidelines:');
+      for (const rule of p.hydrationGuidelines) {
+        lines.push(`  - ${rule.ruleName}: ${rule.description}`);
+      }
+      lines.push('');
+    }
+
+    if (p.progressionRules.length > 0) {
+      lines.push('Progression Rules:');
+      for (const rule of p.progressionRules) {
         lines.push(`  - ${rule.ruleName}: ${rule.description}`);
       }
       lines.push('');
@@ -238,17 +218,15 @@ function WorkoutPlannerScreen() {
 
     for (const day of p.days) {
       lines.push(`Day ${day.dayLabel}: ${day.focus}`);
-      if (day.warmup && day.warmup.length > 0) {
-        lines.push('  Warmup:');
-        for (const w of day.warmup) {
-          lines.push(`    - ${w}`);
+      const dt = day.dailyTotals;
+      lines.push(`  Daily Totals: ${dt.calories} kcal | P: ${dt.proteinGrams}g | C: ${dt.carbsGrams}g | F: ${dt.fatGrams}g | Fiber: ${dt.fiberGrams}g`);
+      for (const meal of day.meals) {
+        const mm = meal.mealMacros;
+        lines.push(`  ${meal.mealLabel} (${meal.mealTime}): ${mm.calories} kcal | P: ${mm.proteinGrams}g | C: ${mm.carbsGrams}g | F: ${mm.fatGrams}g`);
+        for (const food of meal.foods) {
+          lines.push(`    - ${food.foodName} (${food.portion})${food.notes ? ` — ${food.notes}` : ''}`);
+          lines.push(`      ${food.macros.calories} kcal | P: ${food.macros.proteinGrams}g | C: ${food.macros.carbsGrams}g | F: ${food.macros.fatGrams}g | Fiber: ${food.macros.fiberGrams}g`);
         }
-      }
-      for (const ex of day.exercises) {
-        const { sets, weight, reps, rest, targetRpe } = ex.sets;
-        const weightStr = weight > 0 ? `${weight} kg` : 'bodyweight';
-        lines.push(`  ${ex.exerciseName} (${ex.equipment})${ex.notes ? ` - ${ex.notes}` : ''}`);
-        lines.push(`    ${sets}×${reps} @ ${weightStr}, RPE ${targetRpe}, rest ${rest}s`);
       }
       lines.push('');
     }
@@ -271,10 +249,10 @@ function WorkoutPlannerScreen() {
         <SafeAreaView edges={['top']}>
           <View style={styles.headerInner}>
             <AppText variant="h2" color={WT.colors.textLight} style={styles.headerTitle}>
-              Workout Planner
+              Nutrition Planner
             </AppText>
             <AppText variant="body" color="rgba(255,255,255,0.80)">
-              Generate custom AI-powered training plans
+              Generate custom AI-powered meal plans
             </AppText>
           </View>
         </SafeAreaView>
@@ -285,7 +263,7 @@ function WorkoutPlannerScreen() {
           <AppText variant="caption" style={styles.sectionLabel}>PROFILE</AppText>
           <View style={styles.profileSummary}>
             <AppText variant="bodySmall" color={WT.colors.textDark}>
-              {daysPerWeek} days/week · {goal === 'other' ? customPrimaryGoal : goal} · {trainingLevel}
+              {daysPerWeek} days/week · {goal} · {activityLevel}
               {selectedGender ? ` · ${selectedGender}` : ''}
               {bodyWeight ? ` · ${bodyWeight}kg` : ''}
               {heightInCm ? ` · ${heightInCm}cm` : ''}
@@ -295,53 +273,61 @@ function WorkoutPlannerScreen() {
 
           <View style={styles.divider} />
 
-          <AppText variant="caption" style={styles.sectionLabel}>EXTRAS</AppText>
+          <AppText variant="caption" style={styles.sectionLabel}>MEAL PLAN SETTINGS</AppText>
 
-          <AppText variant="bodySmall" bold color={WT.colors.textDark} style={styles.fieldLabel}>Program duration (weeks, optional)</AppText>
+          <AppText variant="bodySmall" bold color={WT.colors.textDark} style={styles.fieldLabel}>Plan duration (weeks, optional)</AppText>
           <TextInput
-            value={programDurationWeeks}
-            onChangeText={setProgramDurationWeeks}
+            value={planDurationWeeks}
+            onChangeText={setPlanDurationWeeks}
             keyboardType="number-pad"
             placeholder="e.g. 8"
             placeholderTextColor={WT.colors.textMuted}
             style={styles.input}
           />
 
-          <AppText variant="bodySmall" bold color={WT.colors.textDark} style={styles.fieldLabel}>Equipment available</AppText>
+          <AppText variant="bodySmall" bold color={WT.colors.textDark} style={styles.fieldLabel}>Meals per day</AppText>
           <TextInput
-            value={equipmentAvailable}
-            onChangeText={setEquipmentAvailable}
-            placeholder="barbell, dumbbell, bodyweight"
+            value={mealsPerDay}
+            onChangeText={setMealsPerDay}
+            keyboardType="number-pad"
+            placeholder="e.g. 4"
             placeholderTextColor={WT.colors.textMuted}
             style={styles.input}
           />
 
-          <AppText variant="bodySmall" bold color={WT.colors.textDark} style={styles.fieldLabel}>Training Age (years)</AppText>
+          <AppText variant="bodySmall" bold color={WT.colors.textDark} style={styles.fieldLabel}>Preferred foods (comma-separated)</AppText>
           <TextInput
-            value={trainingAge}
-            onChangeText={setTrainingAge}
-            keyboardType="decimal-pad"
-            placeholder="e.g. 3"
+            value={preferredFoods}
+            onChangeText={setPreferredFoods}
+            placeholder="chicken breast, eggs, rice, oats"
             placeholderTextColor={WT.colors.textMuted}
             style={styles.input}
           />
 
           <View style={styles.divider} />
 
-          <AppText variant="caption" style={styles.sectionLabel}>LIMITATIONS (OPTIONAL)</AppText>
-          <AppText variant="bodySmall" bold color={WT.colors.textDark} style={styles.fieldLabel}>Injuries</AppText>
+          <AppText variant="caption" style={styles.sectionLabel}>DIETARY RESTRICTIONS (OPTIONAL)</AppText>
+          <AppText variant="bodySmall" bold color={WT.colors.textDark} style={styles.fieldLabel}>Allergies</AppText>
           <TextInput
-            value={injuries}
-            onChangeText={setInjuries}
-            placeholder="Injuries (comma-separated)"
+            value={allergies}
+            onChangeText={setAllergies}
+            placeholder="Allergies (comma-separated)"
             placeholderTextColor={WT.colors.textMuted}
             style={styles.input}
           />
-          <AppText variant="bodySmall" bold color={WT.colors.textDark} style={styles.fieldLabel}>Mobility</AppText>
+          <AppText variant="bodySmall" bold color={WT.colors.textDark} style={styles.fieldLabel}>Intolerances</AppText>
           <TextInput
-            value={mobilityDifficulties}
-            onChangeText={setMobilityDifficulties}
-            placeholder="e.g. tight hips"
+            value={intolerances}
+            onChangeText={setIntolerances}
+            placeholder="Intolerances (comma-separated)"
+            placeholderTextColor={WT.colors.textMuted}
+            style={styles.input}
+          />
+          <AppText variant="bodySmall" bold color={WT.colors.textDark} style={styles.fieldLabel}>Diet type</AppText>
+          <TextInput
+            value={dietType}
+            onChangeText={setDietType}
+            placeholder="e.g. vegetarian, keto, mediterranean"
             placeholderTextColor={WT.colors.textMuted}
             style={styles.input}
           />
@@ -349,12 +335,13 @@ function WorkoutPlannerScreen() {
           <View style={styles.divider} />
 
           <AppText variant="caption" style={styles.sectionLabel}>ADDITIONAL CONTEXT</AppText>
-          <AppText variant="bodySmall" bold color={WT.colors.textDark} style={styles.fieldLabel}>Current RPE (1-10)</AppText>
+
+          <AppText variant="bodySmall" bold color={WT.colors.textDark} style={styles.fieldLabel}>Current calorie intake</AppText>
           <TextInput
-            value={currentRPE}
-            onChangeText={setCurrentRPE}
+            value={currentCalorieIntake}
+            onChangeText={setCurrentCalorieIntake}
             keyboardType="decimal-pad"
-            placeholder="e.g. 8"
+            placeholder="100-10000"
             placeholderTextColor={WT.colors.textMuted}
             style={styles.input}
           />
@@ -363,7 +350,7 @@ function WorkoutPlannerScreen() {
           <TextInput
             value={naturalLanguageRequest}
             onChangeText={setNaturalLanguageRequest}
-            placeholder="I only have 45 minutes on weekdays..."
+            placeholder="I want high-protein meals under 30 min prep time..."
             placeholderTextColor={WT.colors.textMuted}
             multiline
             textAlignVertical="top"
@@ -427,7 +414,7 @@ function WorkoutPlannerScreen() {
               API Key Required
             </AppText>
             <AppText variant="bodySmall" color={WT.colors.textDark} style={{ marginBottom: 16 }}>
-              Enter your API key to generate a workout plan.
+              Enter your API key to generate a nutrition plan.
             </AppText>
             <TextInput
               value={apiKey}
@@ -646,7 +633,6 @@ const styles = StyleSheet.create({
   },
 });
 
-
 function parseList(value: string): string[] {
   return value
     .split(',')
@@ -663,4 +649,4 @@ function installMetroLogRouting(): void {
   LogBox.ignoreAllLogs(true);
 }
 
-export default WorkoutPlannerScreen;
+export default NutritionPlannerScreen;

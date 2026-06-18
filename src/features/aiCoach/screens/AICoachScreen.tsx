@@ -591,16 +591,26 @@ const AICoachScreen: React.FC = () => {
                     <WeightSuggestionsCard />
                     <RecoveryAdviceCard />
 
-                    {/* Ask Coach button */}
+                    {/* Planner buttons */}
                     <TouchableOpacity
                         style={styles.askBtn}
                         activeOpacity={0.85}
                         accessibilityRole="button"
-                        accessibilityLabel="Ask your AI Coach a question"
+                        accessibilityLabel="Open workout planner"
                         onPress={() => navigation.navigate('WorkoutPlanner')}
                     >
-                        <Ionicons name="chatbubble-ellipses-outline" size={20} color="#FFFFFF" />
+                        <Ionicons name="barbell-outline" size={20} color="#FFFFFF" />
                         <Text style={styles.askBtnText}>Workout Planner</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                        style={[styles.askBtn, { backgroundColor: '#2D6A4F', marginTop: 8 }]}
+                        activeOpacity={0.85}
+                        accessibilityRole="button"
+                        accessibilityLabel="Open nutrition planner"
+                        onPress={() => navigation.navigate('NutritionPlanner')}
+                    >
+                        <Ionicons name="nutrition-outline" size={20} color="#FFFFFF" />
+                        <Text style={styles.askBtnText}>Nutrition Planner</Text>
                     </TouchableOpacity>
                 </Animated.ScrollView>
             </SafeAreaView>

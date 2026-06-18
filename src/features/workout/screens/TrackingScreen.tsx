@@ -446,64 +446,8 @@ const MuscleNotice = React.memo(() => {
     <View style={styles.muscleNoticeBadge}>
       <Ionicons name="information-circle-outline" size={16} color={WT.colors.textMuted} />
       <Text style={[styles.sensorText, { color: WT.colors.textMuted }]}>
-        {muscle ? `Wear EMG on ${muscle.toUpperCase()}` : 'No Muscle Detected'}
+        {muscle ? `Wear EMG on ${muscle.toUpperCase()}` : 'Waiting for Exercise'}
       </Text>
-    </View>
-  );
-});
-
-const FatigueDiagnosticsCard = React.memo(() => {
-  const detectedExercise = useAiStore(s => s.detectedExercise);
-  const fatigueLevel = useAiStore(s => s.fatigueLevel);
-  const fatigueConfidence = useAiStore(s => s.fatigueConfidence);
-  const emgBufferLength = useAiStore(s => s.debugEmgBufferLength);
-  const lastPredictTime = useAiStore(s => s.debugLastPredictTime);
-  const classifierMuscle = useAiStore(s => s.debugClassifierMuscle);
-
-  const isPredicting = emgBufferLength >= 500 && classifierMuscle && classifierMuscle !== 'NONE';
-
-  return (
-    <View style={styles.debugCard}>
-      <View style={styles.debugHeader}>
-        <Ionicons name="pulse-outline" size={16} color="#FF9F43" />
-        <Text style={styles.debugTitle}>FATIGUE PIPELINE DIAGNOSTICS</Text>
-      </View>
-      
-      <View style={styles.debugRow}>
-        <Text style={styles.debugLabel}>EMG Buffer Count:</Text>
-        <Text style={[styles.debugValue, { color: emgBufferLength > 0 ? '#6BCB77' : '#FF6B6B' }]}>
-          {emgBufferLength} samples {emgBufferLength < 500 ? `(Calibrating: ${Math.round((emgBufferLength / 500) * 100)}%)` : ''}
-        </Text>
-      </View>
-
-      <View style={styles.debugRow}>
-        <Text style={styles.debugLabel}>Target Muscle:</Text>
-        <Text style={[styles.debugValue, { color: '#4D96FF', fontWeight: 'bold' }]}>
-          {classifierMuscle || 'NONE / INACTIVE'}
-        </Text>
-      </View>
-
-      <View style={styles.debugRow}>
-        <Text style={styles.debugLabel}>Prediction Flow:</Text>
-        <Text style={[styles.debugValue, { color: isPredicting ? '#6BCB77' : '#FF6B6B' }]}>
-          {isPredicting ? 'RUNNING / ACTIVE' : emgBufferLength < 500 && emgBufferLength > 0 ? 'CALIBRATING BASELINE' : 'WAITING FOR DATA'}
-        </Text>
-      </View>
-
-      <View style={styles.debugRow}>
-        <Text style={styles.debugLabel}>Last Inference:</Text>
-        <Text style={styles.debugValue}>{lastPredictTime || 'N/A'}</Text>
-      </View>
-
-      <View style={styles.debugRow}>
-        <Text style={styles.debugLabel}>Output Level:</Text>
-        <Text style={[
-          styles.debugValue,
-          { color: fatigueLevel === 'LOW' ? '#6BCB77' : fatigueLevel === 'MEDIUM' ? '#FFD93D' : '#FF6B6B', fontWeight: 'bold' }
-        ]}>
-          {fatigueLevel} ({Math.round(fatigueConfidence * 100)}% Conf)
-        </Text>
-      </View>
     </View>
   );
 });
@@ -644,9 +588,27 @@ const getPlacementForPrediction = (predictedExercise: string): { muscleName: str
 
 const EMGNoticeCard: React.FC<{ initialTargetMuscles: string }> = React.memo(({ initialTargetMuscles }) => {
   const detectedExercise = useAiStore(s => s.detectedExercise);
-  const placement = detectedExercise
-    ? getPlacementForPrediction(detectedExercise)
-    : getEMGPlacementText(initialTargetMuscles);
+
+  if (!detectedExercise) {
+    return (
+      <View style={styles.emgNoticeCard}>
+        <View style={styles.emgNoticeIconContainer}>
+          <Ionicons name="pulse" size={24} color={WT.colors.warning} />
+        </View>
+        <View style={styles.emgNoticeTextContainer}>
+          <Text style={styles.emgNoticeTitle}>EMG Wear Placement</Text>
+          <Text style={styles.emgNoticeMessage}>
+            Waiting for Exercise
+          </Text>
+          <Text style={styles.emgNoticeSub}>
+            Start exercising to detect the target muscle group for EMG placement.
+          </Text>
+        </View>
+      </View>
+    );
+  }
+
+  const placement = getPlacementForPrediction(detectedExercise);
 
   return (
     <View style={styles.emgNoticeCard}>
@@ -886,7 +848,6 @@ const TrackingScreen: React.FC<Props> = ({ route, navigation }) => {
                 {/* Ghost Skeleton Overlay (hidden) */}
 
                 <View style={styles.metricsOverlay} pointerEvents="none">
-                  <OverlayMetric label="Reps" selector={s => s.reps} />
                   <OverlayMetric label="Tempo" selector={s => s.tempo || 'Analyzing...'} />
                   <OverlayMetric label="Form" selector={s => s.detectedExercise ? (s.imuClassification || (s.formScore + '%')) : 'Waiting...'} />
                   <OverlayMetric label="Fatigue" selector={s => s.fatigueLevel} />
@@ -905,9 +866,6 @@ const TrackingScreen: React.FC<Props> = ({ route, navigation }) => {
                 {/* Prominent Overlay HUDs */}
                 <View style={styles.tempoHud} pointerEvents="none">
                   <TempoOverlay />
-                </View>
-                <View style={styles.repOverlay} pointerEvents="none">
-                  <RepOverlay />
                 </View>
 
                 <TouchableOpacity
@@ -961,7 +919,6 @@ const TrackingScreen: React.FC<Props> = ({ route, navigation }) => {
             <LiveAnalysis />
           </View>
 
-          <FatigueDiagnosticsCard />
 
           <View style={styles.btnRow}>
             <TouchableOpacity
