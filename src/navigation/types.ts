@@ -50,6 +50,7 @@ export type ProfileSetupStackParamList = {
 export type AICoachStackParamList = {
     AICoachHome: undefined;
     WorkoutPlanner: undefined;
+    NutritionPlanner: undefined;
 };
 
 // Main Tab Stack
