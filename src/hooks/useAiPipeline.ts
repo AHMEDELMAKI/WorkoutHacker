@@ -182,34 +182,37 @@ export interface PreprocessedImu {
 }
 
 const DEG_TO_RAD = Math.PI / 180;
-const ACC_SCALE = 16384; // ±2g
 const G_TO_MS2 = 9.80665;
 
 export function convertImuPacket(
     packet: RawImuPacket
 ): PreprocessedImu {
     return {
+        // angles: degrees → radians
         DMRoll: packet.roll * DEG_TO_RAD,
         DMPitch: packet.pitch * DEG_TO_RAD,
         DMYaw: packet.yaw * DEG_TO_RAD,
 
-        DMRotX: packet.gyroX,
-        DMRotY: packet.gyroY,
-        DMRotZ: packet.gyroZ,
+        // gyro: deg/s → rad/s  (IMPORTANT FIX)
+        DMRotX: packet.gyroX * DEG_TO_RAD,
+        DMRotY: packet.gyroY * DEG_TO_RAD,
+        DMRotZ: packet.gyroZ * DEG_TO_RAD,
 
-        AccelroX: (packet.accX / ACC_SCALE) * G_TO_MS2,
-        AccelroY: (packet.accY / ACC_SCALE) * G_TO_MS2,
-        AccelroZ: (packet.accZ / ACC_SCALE) * G_TO_MS2,
+        // accel: g → m/s² (IMPORTANT FIX)
+        AccelroX: packet.accX * G_TO_MS2,
+        AccelroY: packet.accY * G_TO_MS2,
+        AccelroZ: packet.accZ * G_TO_MS2,
     };
 }
 
 /**
  * Preprocess IMU data before model inference.
- * data: flat array [timestamp, roll, pitch, yaw, ax, ay, az, gx, gy, gz, mx, my, mz, ...]
+ * Input format:
+ * [timestamp, roll, pitch, yaw, ax, ay, az, gx, gy, gz, mx, my, mz]
  */
 const preprocessIMUData = (data: number[]): number[] => {
     const result: number[] = [];
-    const sampleSize = 13; // timestamp + 12 IMU values
+    const sampleSize = 13;
 
     for (let i = 0; i < data.length; i += sampleSize) {
         if (i + sampleSize > data.length) break;
@@ -218,12 +221,15 @@ const preprocessIMUData = (data: number[]): number[] => {
             roll: data[i + 1],
             pitch: data[i + 2],
             yaw: data[i + 3],
+
             accX: data[i + 4],
             accY: data[i + 5],
             accZ: data[i + 6],
+
             gyroX: data[i + 7],
             gyroY: data[i + 8],
             gyroZ: data[i + 9],
+
             magX: data[i + 10],
             magY: data[i + 11],
             magZ: data[i + 12],
@@ -231,21 +237,24 @@ const preprocessIMUData = (data: number[]): number[] => {
 
         const p = convertImuPacket(raw);
 
-        // We MUST return exactly 13 values per sample to match Rust's COLS constant (node_modules/imuformanalysis/rust/bicep_rf/src/lib.rs)
         result.push(
-            data[i],      // 0: timestamp
-            p.DMRoll,     // 1: roll (converted to rad)
-            p.DMPitch,    // 2: pitch (converted to rad)
-            p.DMYaw,      // 3: yaw (converted to rad)
-            p.AccelroX,   // 4: accX
-            p.AccelroY,   // 5: accY
-            p.AccelroZ,   // 6: accZ
-            p.DMRotX,     // 7: gyroX (converted to rad/s)
-            p.DMRotY,     // 8: gyroY (converted to rad/s)
-            p.DMRotZ,     // 9: gyroZ (converted to rad/s)
-            raw.magX,     // 10: magX
-            raw.magY,     // 11: magY
-            raw.magZ      // 12: magZ
+            data[i],        // timestamp
+
+            p.DMRoll,       // 1
+            p.DMPitch,      // 2
+            p.DMYaw,        // 3
+
+            p.AccelroX,     // 4
+            p.AccelroY,     // 5
+            p.AccelroZ,     // 6
+
+            p.DMRotX,       // 7
+            p.DMRotY,       // 8
+            p.DMRotZ,       // 9
+
+            raw.magX,       // 10
+            raw.magY,       // 11
+            raw.magZ        // 12
         );
     }
 
