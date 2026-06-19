@@ -7,6 +7,7 @@ import type { FatigueCheckStackParamList } from '../../../navigation/types';
 import { WT } from '../../../theme/workoutTheme';
 import PrimaryWorkoutButton from '../../workout/components/PrimaryWorkoutButton';
 import { useFatigueCheck } from '../context/FatigueCheckContext';
+import { GOAL_PRESETS } from '../../../../Fatigue-with-HeartRate-main/src/fatigue-engine';
 
 type Props = NativeStackScreenProps<FatigueCheckStackParamList, 'FatigueResults'>;
 
@@ -20,7 +21,7 @@ function formatRest(seconds: number): string {
 }
 
 const FatigueResultsScreen: React.FC<Props> = ({ navigation }) => {
-  const { result, resetSession } = useFatigueCheck();
+  const { result, resetSession, trainingGoal } = useFatigueCheck();
 
   const handleBackToHome = () => {
     resetSession();
@@ -190,9 +191,33 @@ const FatigueResultsScreen: React.FC<Props> = ({ navigation }) => {
           </View>
 
           <View style={styles.footer}>
+            {action === 'rest' ? (
+              <PrimaryWorkoutButton
+                label="Start Rest Timer"
+                variant="purple"
+                onPress={() => {
+                  const goal = trainingGoal ?? 'hypertrophy';
+                  const fallbackRest = GOAL_PRESETS[goal].baseRestSec;
+                  navigation.navigate('FatigueRest', {
+                    restSec: recommendedRestSec || fallbackRest,
+                    goal,
+                  });
+                }}
+              />
+            ) : (
+              <PrimaryWorkoutButton
+                label="Back to Start"
+                variant="purple"
+                onPress={() => {
+                  resetSession();
+                  navigation.popToTop();
+                }}
+              />
+            )}
+            <View style={styles.footerSpacer} />
             <PrimaryWorkoutButton
               label="Run Again"
-              variant="purple"
+              variant="white"
               onPress={() => {
                 resetSession();
                 navigation.popToTop();
