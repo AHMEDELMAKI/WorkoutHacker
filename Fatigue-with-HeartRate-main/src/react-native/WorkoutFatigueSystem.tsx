@@ -1,12 +1,12 @@
 /**
  * @module react-native/WorkoutFatigueSystem
  *
- * Lightweight on-device workout controller for the full mobile pipeline.
+ * Lightweight on-device fatigue and recovery monitor for the full mobile pipeline.
  * No backend, no WebSocket loop, no HTTP ingest.
  *
  * Data flow:
- *   CameraHeartRateComponent -> DataAggregator -> FatigueEngine
- *   WiFi sensor hooks         -> DataAggregator -> FatigueEngine
+ *   CameraHeartRateComponent -> DataAggregator -> FatigueAssessment
+ *   WiFi sensor hooks         -> DataAggregator -> FatigueAssessment
  *   IMU readings              -> lightweight local velocity estimator
  */
 
@@ -22,16 +22,30 @@ import {
 } from 'react-native';
 
 import { DataAggregator, SignalCollectionStatus, SignalSnapshot } from '../aggregator';
-import { FatigueEngine, EngineState, ReadinessResult, RestProgressEvent, StateEvent } from '../fatigue-engine';
+import {
+  EngineState,
+  FatigueAssessment,
+  GOAL_PRESETS,
+  ReadinessResult,
+  RestProgressEvent,
+  StateEvent,
+  TrainingGoal,
+} from '../fatigue-engine';
 import { BarbellVelocityTracker, VelocityReading } from '../barbell';
-import { EMGSample } from '../emg';
+import { EMGProcessor } from '../emg';
 import { HeartRateMeasurement } from '../heart-rate/ppg-processor';
 import { EMAFilter } from '../utils/filters';
-import { useEMGPackets, useIMUPackets, useWiFiSensorStatus } from '../../../ESP-connection-main/src';
+import {
+  SensorPacket,
+  useEMGPackets,
+  useIMUPackets,
+  useWiFiSensorStatus,
+} from '../../../ESP-connection-main/src';
 import { CameraHeartRateComponent } from './CameraHeartRateComponent';
 
-interface WorkoutFatigueSystemProps {
+export interface WorkoutFatigueSystemProps {
   hrMax: number;
+  initialTrainingGoal?: TrainingGoal;
   onStateChange?: (event: StateEvent) => void;
   onProgressUpdate?: (event: RestProgressEvent) => void;
   onSnapshot?: (snapshot: SignalSnapshot) => void;
@@ -43,12 +57,8 @@ interface WorkoutFatigueSystemProps {
   showControls?: boolean;
 }
 
-interface IMUReading {
-  timestamp: number;
-  roll: number;
-  pitch: number;
-  yaw: number;
-}
+type EMGPacket = Extract<SensorPacket, { sensor: 'emg' }>;
+type IMUPacket = Extract<SensorPacket, { sensor: 'imu' }>;
 
 interface WorkoutState {
   connected: boolean;
@@ -65,6 +75,8 @@ interface WorkoutState {
   lastSnapshot: SignalSnapshot | null;
   lastAssessment: ReadinessResult | null;
   assessmentDataStatus: SignalCollectionStatus | null;
+  trainingGoal: TrainingGoal | null;
+  goalSelectionRequired: boolean;
   error: string | null;
 }
 
@@ -73,9 +85,18 @@ const VELOCITY_START_THRESHOLD = 0.75;
 const VELOCITY_STOP_THRESHOLD = 0.35;
 const VELOCITY_SAMPLE_TIMEOUT_MS = 250;
 const MIN_ASSESSMENT_DATA_MS = 30_000;
+const DEFAULT_HR_RATIO_THRESHOLD = 0.7;
+const TRAINING_GOAL_OPTIONS: Array<{ key: TrainingGoal; label: string; description: string }> = [
+  { key: 'strength', label: 'Strength', description: 'Longer recovery for high force output.' },
+  { key: 'hypertrophy', label: 'Hypertrophy', description: 'Moderate rest to keep muscular stress high.' },
+  { key: 'endurance', label: 'Endurance', description: 'Shorter rest to build fatigue resistance.' },
+  { key: 'hiit', label: 'HIIT', description: 'Recovery bias for repeated high-intensity intervals.' },
+  { key: 'fat_loss', label: 'Fat Loss', description: 'Short rest to keep effort density and calorie demand high.' },
+];
 
 export const WorkoutFatigueSystem: React.FC<WorkoutFatigueSystemProps> = ({
   hrMax,
+  initialTrainingGoal,
   onStateChange,
   onProgressUpdate,
   onSnapshot,
@@ -95,32 +116,24 @@ export const WorkoutFatigueSystem: React.FC<WorkoutFatigueSystemProps> = ({
       velocityStalenessMs: 15000,
     })
   );
-  const engineRef = useRef(
-    new FatigueEngine(aggregatorRef.current, {
-      hrMax,
-      rest: {
-        pollIntervalMs: 1000,
-        minRestMs: 15_000,
-        timeoutMs: 240_000,
-      },
-      fatigue: {
-        weights: {
-          emg: 0.30,
-          velocity: 0.40,
-          hr: 0.30,
-        },
-      },
-      minAssessmentDataMs: MIN_ASSESSMENT_DATA_MS,
-      assessmentPollIntervalMs: 1000,
-      assessmentTimeoutMs: 90_000,
+  const assessmentRef = useRef(
+    new FatigueAssessment(initialTrainingGoal ? GOAL_PRESETS[initialTrainingGoal].fatigue : undefined)
+  );
+  const emgProcessorRef = useRef(
+    new EMGProcessor({
+      sampleRateHz: 1000,
+      baselineRMS: 100,
+      baselineMedianFreq: 80,
+      epochSize: 200,
     })
   );
   const velocityTrackerRef = useRef(new BarbellVelocityTracker({ velocityLossThreshold: 20 }));
   const velocityEmaRef = useRef(new EMAFilter(0.35));
-  const lastImuRef = useRef<IMUReading | null>(null);
+  const lastImuRef = useRef<IMUPacket | null>(null);
   const movementActiveRef = useRef(false);
   const peakVelocityRef = useRef(0);
   const lastMovementTimeRef = useRef(0);
+  const restStartTimeRef = useRef<number | null>(null);
 
   const [state, setState] = useState<WorkoutState>({
     connected: false,
@@ -132,38 +145,19 @@ export const WorkoutFatigueSystem: React.FC<WorkoutFatigueSystemProps> = ({
     currentEMGRMS: null,
     currentVelocity: null,
     currentVelocityLoss: null,
-    message: 'Ready to begin fatigue calculation',
+    message: 'Ready to begin fatigue monitoring',
     restProgress: null,
     lastSnapshot: null,
     lastAssessment: null,
     assessmentDataStatus: null,
+    trainingGoal: initialTrainingGoal ?? null,
+    goalSelectionRequired: false,
     error: null,
   });
 
   const updateLocalState = useCallback((patch: Partial<WorkoutState>) => {
     setState(prev => ({ ...prev, ...patch }));
   }, []);
-
-  const handleStateEvent = useCallback((event: StateEvent) => {
-    updateLocalState({
-      currentState: event.state,
-      setNumber: event.setNumber,
-      message: event.message,
-      sessionActive: event.state !== 'idle' && event.state !== 'done',
-      error: null,
-    });
-    if (event.data) {
-      const result = event.data as ReadinessResult;
-      updateLocalState({ lastAssessment: result });
-      onAssessment?.(result);
-    }
-    onStateChange?.(event);
-  }, [onAssessment, onStateChange, updateLocalState]);
-
-  const handleProgressEvent = useCallback((event: RestProgressEvent) => {
-    updateLocalState({ restProgress: event });
-    onProgressUpdate?.(event);
-  }, [onProgressUpdate, updateLocalState]);
 
   const handleSnapshotEvent = useCallback((snapshot: SignalSnapshot) => {
     updateLocalState({
@@ -177,70 +171,45 @@ export const WorkoutFatigueSystem: React.FC<WorkoutFatigueSystemProps> = ({
     onSnapshot?.(snapshot);
   }, [onSnapshot, updateLocalState]);
 
-  const handleAssessment = useCallback((result: ReadinessResult) => {
-    updateLocalState({ lastAssessment: result });
-    onAssessment?.(result);
-  }, [onAssessment, updateLocalState]);
-
   const handleAssessmentData = useCallback((status: SignalCollectionStatus) => {
     updateLocalState({ assessmentDataStatus: status });
   }, [updateLocalState]);
 
-  // Subscribe to global WiFi sensor data
-  useEMGPackets(handleEMG);
-  useIMUPackets(handleIMU);
-  const wifiStatus = useWiFiSensorStatus();
+  const emitStateEvent = useCallback((nextState: EngineState, message: string, data?: unknown) => {
+    const event: StateEvent = {
+      state: nextState,
+      setNumber: 0,
+      message,
+      data,
+    };
+
+    updateLocalState({
+      currentState: nextState,
+      setNumber: 0,
+      message,
+      sessionActive: nextState !== 'idle' && nextState !== 'done',
+      goalSelectionRequired: nextState === 'goal-selection',
+      error: null,
+    });
+
+    if (data) {
+      const result = data as ReadinessResult;
+      updateLocalState({ lastAssessment: result });
+      onAssessment?.(result);
+    }
+
+    onStateChange?.(event);
+  }, [onAssessment, onStateChange, updateLocalState]);
 
   useEffect(() => {
-    // Update connection status based on WiFi sensor status
-    const isConnected = wifiStatus === 'connected';
-    updateLocalState({ connected: isConnected });
-  }, [wifiStatus, updateLocalState]);
-
-  useEffect(() => {
-    const engine = engineRef.current;
     const aggregator = aggregatorRef.current;
-
-    engine
-      .on('state', handleStateEvent)
-      .on('progress', handleProgressEvent)
-      .on('assessment-data', handleAssessmentData);
 
     aggregator.on('snapshot', handleSnapshotEvent);
 
     return () => {
       aggregator.destroy();
-      engine.endWorkout();
     };
-  }, [handleAssessmentData, handleProgressEvent, handleSnapshotEvent, handleStateEvent]);
-
-  useEffect(() => {
-    if (autoStart) {
-      startWorkout();
-    }
-  }, [autoStart]);
-
-  const startWorkout = useCallback(() => {
-    updateLocalState({
-      error: null,
-      restProgress: null,
-      lastAssessment: null,
-      assessmentDataStatus: null,
-      message: 'Fatigue calculation started',
-      sessionActive: true,
-      connected: true,
-    });
-    engineRef.current.startWorkout();
-  }, [updateLocalState]);
-
-  const endWorkout = useCallback(() => {
-    engineRef.current.endWorkout();
-    updateLocalState({
-      sessionActive: false,
-      currentState: 'done',
-      message: 'Fatigue calculation complete',
-    });
-  }, [updateLocalState]);
+  }, [handleSnapshotEvent]);
 
   const setError = useCallback((error: string) => {
     updateLocalState({ error });
@@ -255,9 +224,12 @@ export const WorkoutFatigueSystem: React.FC<WorkoutFatigueSystemProps> = ({
     }
   }, [setError]);
 
-  const handleEMG = useCallback((sample: EMGSample) => {
+  const handleEMG = useCallback((packet: EMGPacket) => {
     try {
-      aggregatorRef.current.ingestEMG(sample);
+      const sample = emgProcessorRef.current.push(packet.rawValues ?? [packet.rawSignal]);
+      if (sample) {
+        aggregatorRef.current.ingestEMG(sample);
+      }
     } catch (error) {
       setError(error instanceof Error ? error.message : 'Failed to ingest EMG sample');
     }
@@ -279,7 +251,7 @@ export const WorkoutFatigueSystem: React.FC<WorkoutFatigueSystemProps> = ({
     movementActiveRef.current = false;
   }, [emitVelocityReading]);
 
-  const handleIMU = useCallback((imu: IMUReading) => {
+  const handleIMU = useCallback((imu: IMUPacket) => {
     try {
       aggregatorRef.current.noteVelocitySignal(imu.timestamp);
 
@@ -317,10 +289,176 @@ export const WorkoutFatigueSystem: React.FC<WorkoutFatigueSystemProps> = ({
     }
   }, [finalizeMovement, setError, updateLocalState]);
 
+  const applyTrainingGoal = useCallback((goal: TrainingGoal) => {
+    assessmentRef.current = new FatigueAssessment(GOAL_PRESETS[goal].fatigue);
+    updateLocalState({
+      trainingGoal: goal,
+      goalSelectionRequired: false,
+      message: state.sessionActive
+        ? `Monitoring tuned for ${goal.replace('_', ' ')}. Rest recommendations will now use this goal.`
+        : 'Ready to begin standalone fatigue monitoring',
+      error: null,
+    });
+  }, [state.sessionActive, updateLocalState]);
+
+  // Subscribe to global WiFi sensor data after handlers are defined
+  useEMGPackets(handleEMG);
+  useIMUPackets(handleIMU);
+  const wifiStatus = useWiFiSensorStatus();
+
+  useEffect(() => {
+    const isConnected = wifiStatus === 'connected';
+    updateLocalState({ connected: isConnected });
+  }, [wifiStatus, updateLocalState]);
+
+  useEffect(() => {
+    if (!initialTrainingGoal) return;
+    applyTrainingGoal(initialTrainingGoal);
+  }, [applyTrainingGoal, initialTrainingGoal]);
+
+  const evaluateMonitoringSnapshot = useCallback((snapshot: SignalSnapshot) => {
+    if (!state.sessionActive) {
+      return;
+    }
+
+    const status = aggregatorRef.current.getCollectionStatus(MIN_ASSESSMENT_DATA_MS);
+    handleAssessmentData(status);
+
+    if (!status.ready) {
+      restStartTimeRef.current = null;
+      updateLocalState({ restProgress: null, lastAssessment: null });
+
+      const minSeconds = Math.ceil(MIN_ASSESSMENT_DATA_MS / 1000);
+      const remainingSeconds = Math.max(
+        0,
+        Math.ceil(
+          Math.max(
+            MIN_ASSESSMENT_DATA_MS - status.durationsMs.hr,
+            MIN_ASSESSMENT_DATA_MS - status.durationsMs.emg,
+            MIN_ASSESSMENT_DATA_MS - status.durationsMs.velocity,
+          ) / 1000,
+        ),
+      );
+      const missingSignals = [
+        !status.hasSamples.hr ? 'HR' : null,
+        !status.hasSamples.emg ? 'EMG' : null,
+        !status.hasSamples.velocity ? 'IMU' : null,
+      ].filter(Boolean);
+
+      const message = missingSignals.length > 0
+        ? `Waiting for live signals before analysis. Need ${missingSignals.join(', ')} data.`
+        : `Collecting ${minSeconds}s of HR, EMG, and IMU data. ${remainingSeconds}s remaining before the first fatigue estimate.`;
+
+      emitStateEvent('assessing', message);
+      return;
+    }
+
+    const result = assessmentRef.current.evaluate(snapshot);
+
+    if (result.ready) {
+      restStartTimeRef.current = null;
+      updateLocalState({ restProgress: null });
+      emitStateEvent('assessing', 'Fatigue is within acceptable limits. Continuing live monitoring.', result);
+      return;
+    }
+
+    if (!state.trainingGoal) {
+      updateLocalState({ restProgress: null });
+      emitStateEvent(
+        'goal-selection',
+        'Fatigue detected. Choose a goal to personalize the rest recommendation.',
+        result,
+      );
+      return;
+    }
+
+    if (restStartTimeRef.current === null) {
+      restStartTimeRef.current = Date.now();
+    }
+
+    const preset = GOAL_PRESETS[state.trainingGoal];
+    const targetRatio = preset.fatigue?.hrRatioThreshold ?? DEFAULT_HR_RATIO_THRESHOLD;
+    const targetHR = Math.round(hrMax * targetRatio);
+    const currentHR = snapshot.heartRate;
+    const elapsedSec = Math.round((Date.now() - restStartTimeRef.current) / 1000);
+    const recoveryRange = Math.max(1, hrMax - targetHR);
+    const percentRecovered = currentHR !== null
+      ? Math.max(0, Math.min(100, Math.round((1 - ((currentHR - targetHR) / recoveryRange)) * 100)))
+      : 0;
+
+    updateLocalState({
+      restProgress: {
+        currentHR,
+        targetHR,
+        elapsedSec,
+        percentRecovered,
+      },
+    });
+    onProgressUpdate?.({
+      currentHR,
+      targetHR,
+      elapsedSec,
+      percentRecovered,
+    });
+
+    const totalRestSec = preset.baseRestSec + result.additionalRestSec;
+    emitStateEvent(
+      'resting',
+      `Recovery advised for ${state.trainingGoal.replace('_', ' ')}: rest ${totalRestSec}s total (${preset.baseRestSec}s base + ${result.additionalRestSec}s extra).`,
+      result,
+    );
+  }, [emitStateEvent, handleAssessmentData, hrMax, state.sessionActive, state.trainingGoal, updateLocalState]);
+
+  useEffect(() => {
+    evaluateMonitoringSnapshot(state.lastSnapshot ?? aggregatorRef.current.snapshot());
+  }, [evaluateMonitoringSnapshot, state.lastSnapshot]);
+
+  const startMonitoring = useCallback(() => {
+    restStartTimeRef.current = null;
+    updateLocalState({
+      error: null,
+      restProgress: null,
+      lastAssessment: null,
+      assessmentDataStatus: null,
+      message: 'Monitoring fatigue and recovery signals.',
+      sessionActive: true,
+      connected: true,
+      currentState: 'assessing',
+      trainingGoal: initialTrainingGoal ?? state.trainingGoal,
+      goalSelectionRequired: false,
+    });
+    emitStateEvent('assessing', 'Monitoring fatigue and recovery signals.');
+  }, [emitStateEvent, initialTrainingGoal, state.trainingGoal, updateLocalState]);
+
+  const stopMonitoring = useCallback(() => {
+    restStartTimeRef.current = null;
+    updateLocalState({
+      sessionActive: false,
+      currentState: 'done',
+      goalSelectionRequired: false,
+      restProgress: null,
+      assessmentDataStatus: null,
+      message: 'Standalone fatigue monitoring stopped.',
+    });
+    onStateChange?.({
+      state: 'done',
+      setNumber: 0,
+      message: 'Standalone fatigue monitoring stopped.',
+    });
+  }, [onStateChange, updateLocalState]);
+
+  useEffect(() => {
+    if (autoStart) {
+      startMonitoring();
+    }
+  }, [autoStart, startMonitoring]);
+
   const getStateColor = () => {
     switch (state.currentState) {
       case 'resting':
         return '#FF9800';
+      case 'goal-selection':
+        return '#FFC857';
       case 'set':
         return '#2196F3';
       case 'assessing':
@@ -335,13 +473,15 @@ export const WorkoutFatigueSystem: React.FC<WorkoutFatigueSystemProps> = ({
   const getStateLabel = () => {
     switch (state.currentState) {
       case 'resting':
-        return 'CALCULATING';
-      case 'set':
-        return 'MEASURING';
+        return 'RECOVERY';
+      case 'goal-selection':
+        return 'GOAL NEEDED';
       case 'assessing':
-        return 'ASSESSING';
+        return 'MONITORING';
+      case 'set':
+        return 'ACTIVE';
       case 'done':
-        return 'COMPLETE';
+        return 'STOPPED';
       default:
         return 'IDLE';
     }
@@ -352,6 +492,10 @@ export const WorkoutFatigueSystem: React.FC<WorkoutFatigueSystemProps> = ({
     state.currentFatigue !== null ||
     state.currentVelocity !== null ||
     state.lastSnapshot !== null;
+  const selectedGoalOption = state.trainingGoal
+    ? TRAINING_GOAL_OPTIONS.find(option => option.key === state.trainingGoal) ?? null
+    : null;
+  const selectedGoalBaseRest = state.trainingGoal ? GOAL_PRESETS[state.trainingGoal].baseRestSec : null;
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
@@ -382,7 +526,44 @@ export const WorkoutFatigueSystem: React.FC<WorkoutFatigueSystemProps> = ({
       <View style={[styles.stateCard, { borderLeftColor: getStateColor(), borderLeftWidth: 4 }]}>
         <Text style={styles.stateTitle}>{getStateLabel()}</Text>
         <Text style={styles.stateMessage}>{state.message}</Text>
-        <Text style={styles.setNumber}>Run #{state.setNumber}</Text>
+        <Text style={styles.setNumber}>
+          {selectedGoalOption ? `Goal: ${selectedGoalOption.label}` : 'Goal: not selected'}
+        </Text>
+      </View>
+
+      <View style={styles.assessmentBox}>
+        <Text style={styles.progressTitle}>
+          {state.goalSelectionRequired ? 'Choose Recovery Goal' : 'Recovery Goal'}
+        </Text>
+        <Text style={styles.progressText}>
+          {state.goalSelectionRequired
+            ? 'Fatigue was detected. Pick the goal that matches the type of recovery guidance you want.'
+            : selectedGoalOption
+              ? `Current goal: ${selectedGoalOption.label}. ${selectedGoalOption.description}`
+              : 'No goal selected yet. You can set one now, or the app will ask when fatigue is detected.'}
+        </Text>
+        <View style={styles.goalButtonGrid}>
+          {TRAINING_GOAL_OPTIONS.map(option => {
+            const isSelected = state.trainingGoal === option.key;
+            return (
+              <TouchableOpacity
+                key={option.key}
+                style={[
+                  styles.goalButton,
+                  isSelected ? styles.goalButtonSelected : null,
+                ]}
+                onPress={() => applyTrainingGoal(option.key)}
+              >
+                <Text style={[
+                  styles.goalButtonText,
+                  isSelected ? styles.goalButtonTextSelected : null,
+                ]}>
+                  {option.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
       </View>
 
       {!hasLiveInputs ? (
@@ -432,7 +613,11 @@ export const WorkoutFatigueSystem: React.FC<WorkoutFatigueSystemProps> = ({
         <View style={styles.assessmentBox}>
           <Text style={styles.progressTitle}>Latest Fatigue Result</Text>
           <Text style={styles.progressText}>
-            {state.lastAssessment.ready ? 'Rest time is enough' : `Rest ${state.lastAssessment.additionalRestSec}s more`}
+            {state.lastAssessment.ready
+              ? 'Recovery is currently adequate'
+              : selectedGoalBaseRest !== null
+                ? `Rest ${selectedGoalBaseRest + state.lastAssessment.additionalRestSec}s total (${selectedGoalBaseRest}s base + ${state.lastAssessment.additionalRestSec}s extra)`
+                : `Rest ${state.lastAssessment.additionalRestSec}s more and choose a goal to personalize the full interval`}
           </Text>
           <Text style={styles.progressText}>
             Fatigue index: {state.lastAssessment.fatigueIndex.toFixed(2)}
@@ -457,15 +642,15 @@ export const WorkoutFatigueSystem: React.FC<WorkoutFatigueSystemProps> = ({
 
       {showControls && (
         <View style={styles.buttonRow}>
-          {!state.sessionActive ? (
-            <TouchableOpacity style={[styles.button, styles.buttonPrimary]} onPress={startWorkout}>
-              <Text style={styles.buttonText}>Start Fatigue Calculation</Text>
-            </TouchableOpacity>
-          ) : (
-            <TouchableOpacity style={[styles.button, styles.buttonDanger]} onPress={endWorkout}>
-              <Text style={styles.buttonText}>Stop Calculation</Text>
-            </TouchableOpacity>
-          )}
+              {!state.sessionActive ? (
+              <TouchableOpacity style={[styles.button, styles.buttonPrimary]} onPress={startMonitoring}>
+                <Text style={styles.buttonText}>Start Monitoring</Text>
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity style={[styles.button, styles.buttonDanger]} onPress={stopMonitoring}>
+                <Text style={styles.buttonText}>Stop Monitoring</Text>
+              </TouchableOpacity>
+            )}
         </View>
       )}
 
@@ -594,6 +779,32 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.12)',
   },
+  goalButtonGrid: {
+    flexDirection: 'column',
+    gap: 8,
+    marginTop: 10,
+  },
+  goalButton: {
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 999,
+    width: '100%',
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.16)',
+  },
+  goalButtonSelected: {
+    backgroundColor: 'rgba(124, 255, 178, 0.18)',
+    borderColor: '#7CFFB2',
+  },
+  goalButtonText: {
+    color: '#D6DEEA',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  goalButtonTextSelected: {
+    color: '#F7FAFF',
+  },
   progressTitle: {
     fontSize: 14,
     fontWeight: '800',
@@ -619,9 +830,6 @@ const styles = StyleSheet.create({
   },
   buttonPrimary: {
     backgroundColor: '#1B7CFF',
-  },
-  buttonSuccess: {
-    backgroundColor: '#2EB67D',
   },
   buttonDanger: {
     backgroundColor: '#FF5E73',
