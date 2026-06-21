@@ -22,6 +22,9 @@ import AppButton from '../../../components/AppButton';
 
 type Goal = 'strength' | 'hypertrophy' | 'other';
 type Level = 'beginner' | 'intermediate' | 'advanced';
+type PlanDay = WorkoutPlan['days'][number];
+type PlanExercise = PlanDay['exercises'][number];
+type ExerciseSets = PlanExercise['sets'];
 
 
 const API_BASE_URL = 'https://64.226.123.63.nip.io';
@@ -45,6 +48,11 @@ function WorkoutPlannerScreen() {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [apiKey, setApiKey] = useState('');
   const [showApiKeyModal, setShowApiKeyModal] = useState(false);
+
+  // --- Interactive plan viewer state ---
+  const [selectedDayIndex, setSelectedDayIndex] = useState(0);
+  const [expandedExerciseKeys, setExpandedExerciseKeys] = useState<Set<string>>(new Set());
+  const [showProgressiveOverload, setShowProgressiveOverload] = useState(false);
 
   const daysPerWeek = profile?.workoutDaysPerWeek ?? 4;
   const goal: Goal = (() => {
@@ -81,6 +89,15 @@ function WorkoutPlannerScreen() {
     installMetroLogRouting();
   }, []);
 
+  // Reset the interactive viewer whenever a new plan comes in.
+  useEffect(() => {
+    if (plan) {
+      setSelectedDayIndex(0);
+      setExpandedExerciseKeys(new Set());
+      setShowProgressiveOverload(false);
+    }
+  }, [plan]);
+
   const loadUserProfile = useCallback(async () => {
     try {
       console.log('[WorkoutPlannerScreen] Loading user profile...');
@@ -96,6 +113,18 @@ function WorkoutPlannerScreen() {
       loadUserProfile();
     }, [loadUserProfile])
   );
+
+  const toggleExercise = useCallback((key: string) => {
+    setExpandedExerciseKeys(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) {
+        next.delete(key);
+      } else {
+        next.add(key);
+      }
+      return next;
+    });
+  }, []);
 
   const onGenerate = async (overrideKey?: string) => {
     const key = overrideKey ?? apiKey;
@@ -264,6 +293,8 @@ function WorkoutPlannerScreen() {
     }
   };
 
+  const selectedDay = plan?.days[selectedDayIndex] ?? null;
+
   return (
     <View style={styles.root}>
       <StatusBar barStyle="light-content" backgroundColor={WT.colors.header} />
@@ -408,9 +439,73 @@ function WorkoutPlannerScreen() {
                 </AppText>
               </TouchableOpacity>
             </View>
-            <View style={styles.planContainer}>
-              <AppText style={styles.planText}>{formatPlanHumanReadable(plan)}</AppText>
+
+            <AppText variant="h3" color={WT.colors.textDark} style={styles.planName}>
+              {plan.planName}
+            </AppText>
+            <AppText variant="bodySmall" color={WT.colors.textMuted} style={styles.planMeta}>
+              {plan.primaryGoal} · {plan.trainingLevel} · {plan.daysPerWeek} days/week
+              {plan.durationWeeks ? ` · ${plan.durationWeeks} wk program` : ''}
+            </AppText>
+            <AppText variant="bodySmall" color={WT.colors.textDark} style={styles.rationale}>
+              {plan.rationale}
+            </AppText>
+            <View style={styles.recoveryRow}>
+              <AppText variant="caption" bold color={WT.colors.textMuted}>
+                INTER-SET RECOVERY
+              </AppText>
+              <AppText variant="bodySmall" color={WT.colors.textDark}>
+                {plan.interSetRecoveryPolicy}
+              </AppText>
             </View>
+
+            {plan.progressiveOverload.length > 0 ? (
+              <CollapsibleSection
+                title={`Progressive Overload (${plan.progressiveOverload.length})`}
+                expanded={showProgressiveOverload}
+                onToggle={() => setShowProgressiveOverload(v => !v)}
+              >
+                {plan.progressiveOverload.map((rule, i) => (
+                  <View key={i} style={styles.ruleRow}>
+                    <AppText variant="bodySmall" bold color={WT.colors.textDark}>
+                      {rule.ruleName}
+                    </AppText>
+                    <AppText variant="bodySmall" color={WT.colors.textMuted}>
+                      {rule.description}
+                    </AppText>
+                  </View>
+                ))}
+              </CollapsibleSection>
+            ) : null}
+
+            <View style={styles.divider} />
+
+            <AppText variant="caption" style={styles.sectionLabel}>SELECT A DAY</AppText>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              style={styles.dayTabsScroll}
+              contentContainerStyle={styles.dayTabsContent}
+            >
+              {plan.days.map((day, idx) => (
+                <DayTab
+                  key={idx}
+                  label={day.dayLabel}
+                  subtitle={`${day.exercises.length} exercise${day.exercises.length === 1 ? '' : 's'}`}
+                  active={selectedDayIndex === idx}
+                  onPress={() => setSelectedDayIndex(idx)}
+                />
+              ))}
+            </ScrollView>
+
+            {selectedDay ? (
+              <DayDetail
+                day={selectedDay}
+                dayIndex={selectedDayIndex}
+                expandedExerciseKeys={expandedExerciseKeys}
+                onToggleExercise={toggleExercise}
+              />
+            ) : null}
           </View>
         ) : null}
       </ScrollView>
@@ -474,6 +569,192 @@ function Choice({ label, active, onPress }: { label: string; active: boolean; on
         {label}
       </AppText>
     </TouchableOpacity>
+  );
+}
+
+function CollapsibleSection({
+  title,
+  expanded,
+  onToggle,
+  children,
+}: {
+  title: string;
+  expanded: boolean;
+  onToggle: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <View style={styles.collapsibleSection}>
+      <TouchableOpacity style={styles.collapsibleHeader} onPress={onToggle} activeOpacity={0.7}>
+        <AppText variant="bodySmall" bold color={WT.colors.textDark}>
+          {title}
+        </AppText>
+        <View style={styles.toggleBadge}>
+          <AppText variant="bodySmall" bold color={WT.colors.primary}>
+            {expanded ? '−' : '+'}
+          </AppText>
+        </View>
+      </TouchableOpacity>
+      {expanded ? <View style={styles.collapsibleBody}>{children}</View> : null}
+    </View>
+  );
+}
+
+function DayTab({
+  label,
+  subtitle,
+  active,
+  onPress,
+}: {
+  label: string;
+  subtitle: string;
+  active: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <TouchableOpacity
+      style={[styles.dayTab, active ? styles.dayTabActive : null]}
+      onPress={onPress}
+      activeOpacity={0.8}
+    >
+      <AppText variant="bodySmall" bold color={active ? WT.colors.textLight : WT.colors.primary}>
+        {label}
+      </AppText>
+      <AppText variant="caption" color={active ? 'rgba(255,255,255,0.85)' : WT.colors.textMuted}>
+        {subtitle}
+      </AppText>
+    </TouchableOpacity>
+  );
+}
+
+function SetChips({ sets }: { sets: ExerciseSets }) {
+  const weightStr = sets.weight > 0 ? `${sets.weight}kg` : 'BW';
+  const items: Array<{ value: string; label: string }> = [
+    { value: `${sets.sets}`, label: 'sets' },
+    { value: `${sets.reps}`, label: 'reps' },
+    { value: weightStr, label: 'load' },
+    { value: `${sets.targetRpe}`, label: 'RPE' },
+    { value: `${sets.rest}s`, label: 'rest' },
+  ];
+
+  return (
+    <View style={styles.macroChipsRow}>
+      {items.map((item, i) => (
+        <View key={i} style={styles.macroChip}>
+          <AppText variant="caption" bold color={WT.colors.textDark}>
+            {item.value}
+          </AppText>
+          <AppText variant="caption" color={WT.colors.textMuted}>
+            {item.label}
+          </AppText>
+        </View>
+      ))}
+    </View>
+  );
+}
+
+function ExerciseCard({
+  exercise,
+  index,
+  exerciseKey,
+  expanded,
+  onToggle,
+}: {
+  exercise: PlanExercise;
+  index: number;
+  exerciseKey: string;
+  expanded: boolean;
+  onToggle: (key: string) => void;
+}) {
+  const hasNotes = Boolean(exercise.notes && exercise.notes.trim().length > 0);
+
+  return (
+    <View style={styles.mealCard}>
+      <TouchableOpacity
+        style={styles.mealHeader}
+        onPress={() => hasNotes && onToggle(exerciseKey)}
+        activeOpacity={hasNotes ? 0.7 : 1}
+        disabled={!hasNotes}
+      >
+        <View style={styles.exerciseIndexBadge}>
+          <AppText variant="caption" bold color={WT.colors.primary}>
+            {index + 1}
+          </AppText>
+        </View>
+        <View style={styles.mealHeaderText}>
+          <AppText variant="bodySmall" bold color={WT.colors.textDark}>
+            {exercise.exerciseName}
+          </AppText>
+          <AppText variant="caption" color={WT.colors.textMuted}>
+            {exercise.equipment}
+          </AppText>
+        </View>
+        {hasNotes ? (
+          <View style={styles.toggleBadge}>
+            <AppText variant="bodySmall" bold color={WT.colors.primary}>
+              {expanded ? '−' : '+'}
+            </AppText>
+          </View>
+        ) : null}
+      </TouchableOpacity>
+
+      <View style={styles.mealBody}>
+        <SetChips sets={exercise.sets} />
+        {expanded && hasNotes ? (
+          <AppText variant="bodySmall" color={WT.colors.textMuted} style={styles.exerciseNotes}>
+            {exercise.notes}
+          </AppText>
+        ) : null}
+      </View>
+    </View>
+  );
+}
+
+function DayDetail({
+  day,
+  dayIndex,
+  expandedExerciseKeys,
+  onToggleExercise,
+}: {
+  day: PlanDay;
+  dayIndex: number;
+  expandedExerciseKeys: Set<string>;
+  onToggleExercise: (key: string) => void;
+}) {
+  return (
+    <View style={styles.dayDetail}>
+      <AppText variant="bodySmall" bold color={WT.colors.textDark} style={styles.dayFocus}>
+        {day.focus}
+      </AppText>
+
+      {day.warmup && day.warmup.length > 0 ? (
+        <View style={styles.warmupRow}>
+          {day.warmup.map((item, i) => (
+            <View key={i} style={styles.warmupChip}>
+              <AppText variant="caption" color={WT.colors.textDark}>
+                {item}
+              </AppText>
+            </View>
+          ))}
+        </View>
+      ) : null}
+
+      <View style={styles.mealsList}>
+        {day.exercises.map((exercise, exIdx) => {
+          const key = `${dayIndex}-${exIdx}`;
+          return (
+            <ExerciseCard
+              key={key}
+              exercise={exercise}
+              index={exIdx}
+              exerciseKey={key}
+              expanded={expandedExerciseKeys.has(key)}
+              onToggle={onToggleExercise}
+            />
+          );
+        })}
+      </View>
+    </View>
   );
 }
 
@@ -572,19 +853,6 @@ const styles = StyleSheet.create({
     marginTop: WT.spacing.sm,
     textAlign: 'center',
   },
-  planContainer: {
-    backgroundColor: '#F8F9FB',
-    borderRadius: WT.radius.sm,
-    padding: WT.spacing.md,
-    borderWidth: 1,
-    borderColor: WT.colors.cardBorder,
-  },
-  planText: {
-    fontFamily: Platform.select({ ios: 'Menlo', android: 'monospace' }),
-    fontSize: 13,
-    lineHeight: 20,
-    color: WT.colors.textDark,
-  },
   labelRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -598,6 +866,161 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: WT.colors.primary,
   },
+
+  // --- Plan overview ---
+  planName: {
+    fontWeight: '800',
+    marginBottom: 2,
+  },
+  planMeta: {
+    marginBottom: WT.spacing.sm,
+  },
+  rationale: {
+    marginBottom: WT.spacing.sm,
+    lineHeight: 20,
+  },
+  recoveryRow: {
+    marginBottom: WT.spacing.sm,
+  },
+
+  // --- Collapsible sections (progressive overload) ---
+  collapsibleSection: {
+    borderRadius: WT.radius.sm,
+    borderWidth: 1,
+    borderColor: WT.colors.cardBorder,
+    marginTop: WT.spacing.sm,
+    overflow: 'hidden',
+  },
+  collapsibleHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: WT.spacing.md,
+    paddingVertical: WT.spacing.sm,
+    backgroundColor: '#F8F9FB',
+  },
+  collapsibleBody: {
+    paddingHorizontal: WT.spacing.md,
+    paddingVertical: WT.spacing.sm,
+  },
+  ruleRow: {
+    marginBottom: WT.spacing.sm,
+  },
+  toggleBadge: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    borderWidth: 1,
+    borderColor: WT.colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  // --- Day tabs ---
+  dayTabsScroll: {
+    marginBottom: WT.spacing.md,
+  },
+  dayTabsContent: {
+    gap: WT.spacing.xs,
+    paddingRight: WT.spacing.sm,
+  },
+  dayTab: {
+    minWidth: 84,
+    alignItems: 'center',
+    borderRadius: WT.radius.sm,
+    borderWidth: 1,
+    borderColor: WT.colors.primary,
+    backgroundColor: '#FFF',
+    paddingVertical: WT.spacing.sm,
+    paddingHorizontal: WT.spacing.md,
+  },
+  dayTabActive: {
+    backgroundColor: WT.colors.primary,
+  },
+
+  // --- Day detail ---
+  dayDetail: {
+    backgroundColor: '#F8F9FB',
+    borderRadius: WT.radius.sm,
+    borderWidth: 1,
+    borderColor: WT.colors.cardBorder,
+    padding: WT.spacing.md,
+  },
+  dayFocus: {
+    marginBottom: WT.spacing.sm,
+  },
+  warmupRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: WT.spacing.xs,
+    marginBottom: WT.spacing.md,
+  },
+  warmupChip: {
+    backgroundColor: '#FFF',
+    borderWidth: 1,
+    borderColor: WT.colors.cardBorder,
+    borderRadius: 16,
+    paddingHorizontal: WT.spacing.sm,
+    paddingVertical: 4,
+  },
+  macroChipsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: WT.spacing.xs,
+  },
+  macroChip: {
+    alignItems: 'center',
+    backgroundColor: '#FFF',
+    borderWidth: 1,
+    borderColor: WT.colors.cardBorder,
+    borderRadius: WT.radius.sm,
+    paddingHorizontal: WT.spacing.sm,
+    paddingVertical: 6,
+    minWidth: 52,
+  },
+  mealsList: {
+    gap: WT.spacing.sm,
+  },
+
+  // --- Exercise cards ---
+  mealCard: {
+    backgroundColor: '#FFF',
+    borderRadius: WT.radius.sm,
+    borderWidth: 1,
+    borderColor: WT.colors.cardBorder,
+    overflow: 'hidden',
+  },
+  mealHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: WT.spacing.md,
+    paddingVertical: WT.spacing.sm,
+  },
+  exerciseIndexBadge: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: '#F0F4FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: WT.spacing.sm,
+  },
+  mealHeaderText: {
+    flex: 1,
+    paddingRight: WT.spacing.sm,
+  },
+  mealBody: {
+    paddingHorizontal: WT.spacing.md,
+    paddingBottom: WT.spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: WT.colors.cardBorder,
+    paddingTop: WT.spacing.sm,
+  },
+  exerciseNotes: {
+    marginTop: WT.spacing.sm,
+    fontStyle: 'italic',
+  },
+
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.5)',

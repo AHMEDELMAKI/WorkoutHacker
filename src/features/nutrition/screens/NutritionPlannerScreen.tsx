@@ -22,6 +22,9 @@ import AppButton from '../../../components/AppButton';
 
 type Goal = 'weight_loss' | 'muscle_gain' | 'maintenance' | 'general_health' | 'other';
 type ActivityLevel = 'sedentary' | 'lightly_active' | 'moderately_active' | 'very_active';
+type PlanDay = NutritionPlan['days'][number];
+type PlanMeal = PlanDay['meals'][number];
+type Macros = PlanDay['dailyTotals'];
 
 const API_BASE_URL = 'https://64.226.123.63.nip.io';
 const API_ENDPOINT = '/api/nutrition';
@@ -46,6 +49,12 @@ function NutritionPlannerScreen() {
   const [apiKey, setApiKey] = useState('');
   const [showApiKeyModal, setShowApiKeyModal] = useState(false);
 
+  // --- Interactive plan viewer state ---
+  const [selectedDayIndex, setSelectedDayIndex] = useState(0);
+  const [expandedMealKeys, setExpandedMealKeys] = useState<Set<string>>(new Set());
+  const [showHydration, setShowHydration] = useState(false);
+  const [showProgression, setShowProgression] = useState(false);
+
   const daysPerWeek = profile?.workoutDaysPerWeek ?? 4;
   const goal: Goal = (() => {
     const pg = profile?.workoutPrimaryGoal;
@@ -69,6 +78,16 @@ function NutritionPlannerScreen() {
     installMetroLogRouting();
   }, []);
 
+  // Reset the interactive viewer whenever a new plan comes in.
+  useEffect(() => {
+    if (plan) {
+      setSelectedDayIndex(0);
+      setExpandedMealKeys(new Set());
+      setShowHydration(false);
+      setShowProgression(false);
+    }
+  }, [plan]);
+
   const loadUserProfile = useCallback(async () => {
     try {
       const p = await userApi.getProfile();
@@ -83,6 +102,18 @@ function NutritionPlannerScreen() {
       loadUserProfile();
     }, [loadUserProfile])
   );
+
+  const toggleMeal = useCallback((key: string) => {
+    setExpandedMealKeys(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) {
+        next.delete(key);
+      } else {
+        next.add(key);
+      }
+      return next;
+    });
+  }, []);
 
   const onGenerate = async (overrideKey?: string) => {
     const key = overrideKey ?? apiKey;
@@ -242,6 +273,8 @@ function NutritionPlannerScreen() {
     }
   };
 
+  const selectedDay = plan?.days[selectedDayIndex] ?? null;
+
   return (
     <View style={styles.root}>
       <StatusBar barStyle="light-content" backgroundColor={WT.colors.header} />
@@ -395,9 +428,84 @@ function NutritionPlannerScreen() {
                 </AppText>
               </TouchableOpacity>
             </View>
-            <View style={styles.planContainer}>
-              <AppText style={styles.planText}>{formatPlanHumanReadable(plan)}</AppText>
-            </View>
+
+            <AppText variant="h3" color={WT.colors.textDark} style={styles.planName}>
+              {plan.planName}
+            </AppText>
+            <AppText variant="bodySmall" color={WT.colors.textMuted} style={styles.planMeta}>
+              {plan.primaryGoal} · {plan.activityLevel} · {plan.daysPerWeek} days/week
+              {plan.durationWeeks ? ` · ${plan.durationWeeks} wk plan` : ''}
+            </AppText>
+            <AppText variant="bodySmall" color={WT.colors.textDark} style={styles.rationale}>
+              {plan.rationale}
+            </AppText>
+
+            {plan.hydrationGuidelines.length > 0 ? (
+              <CollapsibleSection
+                title={`Hydration Guidelines (${plan.hydrationGuidelines.length})`}
+                expanded={showHydration}
+                onToggle={() => setShowHydration(v => !v)}
+              >
+                {plan.hydrationGuidelines.map((rule, i) => (
+                  <View key={i} style={styles.ruleRow}>
+                    <AppText variant="bodySmall" bold color={WT.colors.textDark}>
+                      {rule.ruleName}
+                    </AppText>
+                    <AppText variant="bodySmall" color={WT.colors.textMuted}>
+                      {rule.description}
+                    </AppText>
+                  </View>
+                ))}
+              </CollapsibleSection>
+            ) : null}
+
+            {plan.progressionRules.length > 0 ? (
+              <CollapsibleSection
+                title={`Progression Rules (${plan.progressionRules.length})`}
+                expanded={showProgression}
+                onToggle={() => setShowProgression(v => !v)}
+              >
+                {plan.progressionRules.map((rule, i) => (
+                  <View key={i} style={styles.ruleRow}>
+                    <AppText variant="bodySmall" bold color={WT.colors.textDark}>
+                      {rule.ruleName}
+                    </AppText>
+                    <AppText variant="bodySmall" color={WT.colors.textMuted}>
+                      {rule.description}
+                    </AppText>
+                  </View>
+                ))}
+              </CollapsibleSection>
+            ) : null}
+
+            <View style={styles.divider} />
+
+            <AppText variant="caption" style={styles.sectionLabel}>SELECT A DAY</AppText>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              style={styles.dayTabsScroll}
+              contentContainerStyle={styles.dayTabsContent}
+            >
+              {plan.days.map((day, idx) => (
+                <DayTab
+                  key={idx}
+                  label={day.dayLabel}
+                  calories={day.dailyTotals.calories}
+                  active={selectedDayIndex === idx}
+                  onPress={() => setSelectedDayIndex(idx)}
+                />
+              ))}
+            </ScrollView>
+
+            {selectedDay ? (
+              <DayDetail
+                day={selectedDay}
+                dayIndex={selectedDayIndex}
+                expandedMealKeys={expandedMealKeys}
+                onToggleMeal={toggleMeal}
+              />
+            ) : null}
           </View>
         ) : null}
       </ScrollView>
@@ -461,6 +569,189 @@ function Choice({ label, active, onPress }: { label: string; active: boolean; on
         {label}
       </AppText>
     </TouchableOpacity>
+  );
+}
+
+function CollapsibleSection({
+  title,
+  expanded,
+  onToggle,
+  children,
+}: {
+  title: string;
+  expanded: boolean;
+  onToggle: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <View style={styles.collapsibleSection}>
+      <TouchableOpacity style={styles.collapsibleHeader} onPress={onToggle} activeOpacity={0.7}>
+        <AppText variant="bodySmall" bold color={WT.colors.textDark}>
+          {title}
+        </AppText>
+        <View style={styles.toggleBadge}>
+          <AppText variant="bodySmall" bold color={WT.colors.primary}>
+            {expanded ? '−' : '+'}
+          </AppText>
+        </View>
+      </TouchableOpacity>
+      {expanded ? <View style={styles.collapsibleBody}>{children}</View> : null}
+    </View>
+  );
+}
+
+function DayTab({
+  label,
+  calories,
+  active,
+  onPress,
+}: {
+  label: string;
+  calories: number;
+  active: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <TouchableOpacity
+      style={[styles.dayTab, active ? styles.dayTabActive : null]}
+      onPress={onPress}
+      activeOpacity={0.8}
+    >
+      <AppText variant="bodySmall" bold color={active ? WT.colors.textLight : WT.colors.primary}>
+        {label}
+      </AppText>
+      <AppText variant="caption" color={active ? 'rgba(255,255,255,0.85)' : WT.colors.textMuted}>
+        {Math.round(calories)} kcal
+      </AppText>
+    </TouchableOpacity>
+  );
+}
+
+function MacroChips({ macros }: { macros: Macros }) {
+  const items: Array<{ value: string; label: string }> = [
+    { value: `${Math.round(macros.calories)}`, label: 'kcal' },
+    { value: `${Math.round(macros.proteinGrams)}g`, label: 'protein' },
+    { value: `${Math.round(macros.carbsGrams)}g`, label: 'carbs' },
+    { value: `${Math.round(macros.fatGrams)}g`, label: 'fat' },
+  ];
+  if (typeof macros.fiberGrams === 'number') {
+    items.push({ value: `${Math.round(macros.fiberGrams)}g`, label: 'fiber' });
+  }
+
+  return (
+    <View style={styles.macroChipsRow}>
+      {items.map((item, i) => (
+        <View key={i} style={styles.macroChip}>
+          <AppText variant="caption" bold color={WT.colors.textDark}>
+            {item.value}
+          </AppText>
+          <AppText variant="caption" color={WT.colors.textMuted}>
+            {item.label}
+          </AppText>
+        </View>
+      ))}
+    </View>
+  );
+}
+
+function MealCard({
+  meal,
+  mealKey,
+  expanded,
+  onToggle,
+}: {
+  meal: PlanMeal;
+  mealKey: string;
+  expanded: boolean;
+  onToggle: (key: string) => void;
+}) {
+  return (
+    <View style={styles.mealCard}>
+      <TouchableOpacity
+        style={styles.mealHeader}
+        onPress={() => onToggle(mealKey)}
+        activeOpacity={0.7}
+      >
+        <View style={styles.mealHeaderText}>
+          <AppText variant="bodySmall" bold color={WT.colors.textDark}>
+            {meal.mealLabel}
+          </AppText>
+          <AppText variant="caption" color={WT.colors.textMuted}>
+            {meal.mealTime} · {Math.round(meal.mealMacros.calories)} kcal · {meal.foods.length} item
+            {meal.foods.length === 1 ? '' : 's'}
+          </AppText>
+        </View>
+        <View style={styles.toggleBadge}>
+          <AppText variant="bodySmall" bold color={WT.colors.primary}>
+            {expanded ? '−' : '+'}
+          </AppText>
+        </View>
+      </TouchableOpacity>
+
+      {expanded ? (
+        <View style={styles.mealBody}>
+          <MacroChips macros={meal.mealMacros} />
+          {meal.foods.map((food, foodIdx) => (
+            <View
+              key={foodIdx}
+              style={[
+                styles.foodRow,
+                foodIdx === meal.foods.length - 1 ? styles.foodRowLast : null,
+              ]}
+            >
+              <View style={styles.foodRowText}>
+                <AppText variant="bodySmall" bold color={WT.colors.textDark}>
+                  {food.foodName}
+                </AppText>
+                <AppText variant="caption" color={WT.colors.textMuted}>
+                  {food.portion}
+                  {food.notes ? ` · ${food.notes}` : ''}
+                </AppText>
+              </View>
+              <AppText variant="caption" color={WT.colors.textMuted}>
+                {Math.round(food.macros.calories)} kcal
+              </AppText>
+            </View>
+          ))}
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+function DayDetail({
+  day,
+  dayIndex,
+  expandedMealKeys,
+  onToggleMeal,
+}: {
+  day: PlanDay;
+  dayIndex: number;
+  expandedMealKeys: Set<string>;
+  onToggleMeal: (key: string) => void;
+}) {
+  return (
+    <View style={styles.dayDetail}>
+      <AppText variant="bodySmall" bold color={WT.colors.textDark} style={styles.dayFocus}>
+        {day.focus}
+      </AppText>
+      <MacroChips macros={day.dailyTotals} />
+
+      <View style={styles.mealsList}>
+        {day.meals.map((meal, mealIdx) => {
+          const key = `${dayIndex}-${mealIdx}`;
+          return (
+            <MealCard
+              key={key}
+              meal={meal}
+              mealKey={key}
+              expanded={expandedMealKeys.has(key)}
+              onToggle={onToggleMeal}
+            />
+          );
+        })}
+      </View>
+    </View>
   );
 }
 
@@ -559,19 +850,6 @@ const styles = StyleSheet.create({
     marginTop: WT.spacing.sm,
     textAlign: 'center',
   },
-  planContainer: {
-    backgroundColor: '#F8F9FB',
-    borderRadius: WT.radius.sm,
-    padding: WT.spacing.md,
-    borderWidth: 1,
-    borderColor: WT.colors.cardBorder,
-  },
-  planText: {
-    fontFamily: Platform.select({ ios: 'Menlo', android: 'monospace' }),
-    fontSize: 13,
-    lineHeight: 20,
-    color: WT.colors.textDark,
-  },
   labelRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -585,6 +863,148 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: WT.colors.primary,
   },
+
+  // --- Plan overview ---
+  planName: {
+    fontWeight: '800',
+    marginBottom: 2,
+  },
+  planMeta: {
+    marginBottom: WT.spacing.sm,
+  },
+  rationale: {
+    marginBottom: WT.spacing.sm,
+    lineHeight: 20,
+  },
+
+  // --- Collapsible sections (hydration / progression) ---
+  collapsibleSection: {
+    borderRadius: WT.radius.sm,
+    borderWidth: 1,
+    borderColor: WT.colors.cardBorder,
+    marginTop: WT.spacing.sm,
+    overflow: 'hidden',
+  },
+  collapsibleHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: WT.spacing.md,
+    paddingVertical: WT.spacing.sm,
+    backgroundColor: '#F8F9FB',
+  },
+  collapsibleBody: {
+    paddingHorizontal: WT.spacing.md,
+    paddingVertical: WT.spacing.sm,
+  },
+  ruleRow: {
+    marginBottom: WT.spacing.sm,
+  },
+  toggleBadge: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    borderWidth: 1,
+    borderColor: WT.colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  // --- Day tabs ---
+  dayTabsScroll: {
+    marginBottom: WT.spacing.md,
+  },
+  dayTabsContent: {
+    gap: WT.spacing.xs,
+    paddingRight: WT.spacing.sm,
+  },
+  dayTab: {
+    minWidth: 84,
+    alignItems: 'center',
+    borderRadius: WT.radius.sm,
+    borderWidth: 1,
+    borderColor: WT.colors.primary,
+    backgroundColor: '#FFF',
+    paddingVertical: WT.spacing.sm,
+    paddingHorizontal: WT.spacing.md,
+  },
+  dayTabActive: {
+    backgroundColor: WT.colors.primary,
+  },
+
+  // --- Day detail ---
+  dayDetail: {
+    backgroundColor: '#F8F9FB',
+    borderRadius: WT.radius.sm,
+    borderWidth: 1,
+    borderColor: WT.colors.cardBorder,
+    padding: WT.spacing.md,
+  },
+  dayFocus: {
+    marginBottom: WT.spacing.sm,
+  },
+  macroChipsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: WT.spacing.xs,
+    marginBottom: WT.spacing.sm,
+  },
+  macroChip: {
+    alignItems: 'center',
+    backgroundColor: '#FFF',
+    borderWidth: 1,
+    borderColor: WT.colors.cardBorder,
+    borderRadius: WT.radius.sm,
+    paddingHorizontal: WT.spacing.sm,
+    paddingVertical: 6,
+    minWidth: 56,
+  },
+  mealsList: {
+    gap: WT.spacing.sm,
+  },
+
+  // --- Meal cards ---
+  mealCard: {
+    backgroundColor: '#FFF',
+    borderRadius: WT.radius.sm,
+    borderWidth: 1,
+    borderColor: WT.colors.cardBorder,
+    overflow: 'hidden',
+  },
+  mealHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: WT.spacing.md,
+    paddingVertical: WT.spacing.sm,
+  },
+  mealHeaderText: {
+    flex: 1,
+    paddingRight: WT.spacing.sm,
+  },
+  mealBody: {
+    paddingHorizontal: WT.spacing.md,
+    paddingBottom: WT.spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: WT.colors.cardBorder,
+    paddingTop: WT.spacing.sm,
+  },
+  foodRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    paddingVertical: WT.spacing.xs,
+    borderBottomWidth: 1,
+    borderBottomColor: WT.colors.cardBorder,
+  },
+  foodRowLast: {
+    borderBottomWidth: 0,
+  },
+  foodRowText: {
+    flex: 1,
+    paddingRight: WT.spacing.sm,
+  },
+
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.5)',
