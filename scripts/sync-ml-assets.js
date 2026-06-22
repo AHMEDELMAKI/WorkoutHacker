@@ -38,41 +38,11 @@ function assertValidModelFile(destPath, modelName) {
 function main() {
   ensureDir(appAssetsDir);
 
-  const poseLiteSrc = path.join(
+  const fatigueModelDir = path.join(
     root,
     'node_modules',
-    'react-native-pose-landmarks',
-    'example',
-    'android',
-    'app',
-    'src',
-    'main',
-    'assets',
-    'pose_landmarker_lite.task',
-  );
-  const poseFullSrc = path.join(
-    root,
-    'node_modules',
-    'react-native-pose-landmarks',
-    'example',
-    'android',
-    'app',
-    'src',
-    'main',
-    'assets',
-    'pose_landmarker_full.task',
-  );
-  const exerciseSrc = path.join(
-    root,
-    'node_modules',
-    'react-native-exercise-recognition',
-    'example',
-    'android',
-    'app',
-    'src',
-    'main',
-    'assets',
-    'exercise_classifier_rf.json',
+    'react-native-fatigue-classifier',
+    'model_data',
   );
 
   const poseLiteDest = path.join(appAssetsDir, 'pose_landmarker_lite.task');
@@ -80,16 +50,54 @@ function main() {
   const exerciseDest = path.join(appAssetsDir, 'exercise_classifier_rf.json');
   const tempoDest = path.join(appAssetsDir, 'tempo_classifier.json');
 
+  const fatigueAssets = [
+    'fatigue_rf_model_BICEPS_BRACHII_envelope.json',
+    'fatigue_rf_model_TRICEPS_BRACHII_envelope.json',
+    'feature_list_BICEPS_BRACHII_envelope.json',
+    'feature_list_TRICEPS_BRACHII_envelope.json',
+    'feature_means_BICEPS_BRACHII_envelope.json',
+    'feature_means_TRICEPS_BRACHII_envelope.json',
+    'label_map_BICEPS_BRACHII.json',
+    'label_map_TRICEPS_BRACHII.json',
+    'model_metadata_BICEPS_BRACHII_envelope.json',
+    'model_metadata_TRICEPS_BRACHII_envelope.json',
+  ];
+
+  // Pose landmarker models (optional)
+  const poseLiteSrc = path.join(
+    root, 'node_modules', 'react-native-pose-landmarks',
+    'example', 'android', 'app', 'src', 'main', 'assets', 'pose_landmarker_lite.task',
+  );
+  const poseFullSrc = path.join(
+    root, 'node_modules', 'react-native-pose-landmarks',
+    'example', 'android', 'app', 'src', 'main', 'assets', 'pose_landmarker_full.task',
+  );
+  const exerciseSrc = path.join(
+    root, 'node_modules', 'react-native-exercise-recognition',
+    'example', 'android', 'app', 'src', 'main', 'assets', 'exercise_classifier_rf.json',
+  );
+
   copyIfExists(poseLiteSrc, poseLiteDest);
   copyIfExists(poseFullSrc, poseFullDest);
 
   // IMPORTANT:
   // android/app/src/main/assets/exercise_classifier_rf.json may be provided manually by the app.
-  // The library's example sometimes ships a placeholder 404 response; we must not overwrite a valid local model.
   if (fs.existsSync(exerciseDest) && !isLikely404Text(exerciseDest)) {
     console.log('[sync-ml-assets] Keeping existing valid exercise_classifier_rf.json in app assets.');
   } else {
     copyIfExists(exerciseSrc, exerciseDest);
+  }
+
+  // Copy fatigue model data
+  for (const file of fatigueAssets) {
+    const src = path.join(fatigueModelDir, file);
+    const dest = path.join(appAssetsDir, file);
+    if (fs.existsSync(src)) {
+      fs.copyFileSync(src, dest);
+      console.log(`[sync-ml-assets] Copied ${file}`);
+    } else {
+      console.warn(`[sync-ml-assets] Missing fatigue model file: ${file}`);
+    }
   }
 
   const missing = [];
@@ -101,7 +109,6 @@ function main() {
     throw new Error(`[sync-ml-assets] Missing required asset(s): ${missing.join(', ')}`);
   }
 
-  // Hard-fail so you never hit the runtime "model failed to load" path.
   assertValidModelFile(exerciseDest, 'exercise_classifier_rf.json');
   assertValidModelFile(tempoDest, 'tempo_classifier.json');
 }

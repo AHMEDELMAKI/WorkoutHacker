@@ -1,0 +1,13 @@
+[
+  "RMS_rel",
+  "MAV_rel",
+  "VAR_rel",
+  "WL_rel",
+  "SSC_rel",
+  "SKEW_rel",
+  "KURT_rel",
+  "RMS_rel_delta",
+  "SKEW_rel_delta",
+  "RMS_rel_slope5",
+  "SKEW_rel_slope5"
+]

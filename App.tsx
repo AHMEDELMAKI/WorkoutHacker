@@ -6,6 +6,7 @@ import AppNavigator from './src/navigation/AppNavigator';
 import GlobalVoiceController from './src/components/GlobalVoiceController';
 import { useAuthStore } from './src/store/authStore';
 import { WiFiSensorBridge } from './ESP-connection-main/src';
+import { WiFiSensorService } from './ESP-connection-main/src';
 
 // Error boundary component to catch rendering errors
 class ErrorBoundary extends React.Component<
@@ -27,14 +28,7 @@ class ErrorBoundary extends React.Component<
 
   render() {
     if (this.state.hasError) {
-      return (
-        <SafeAreaView style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'red' }}>
-          <Text style={{ color: 'white', fontSize: 18 }}>App Crashed!</Text>
-          <Text style={{ color: 'white', marginTop: 10 }}>
-            {this.state.error?.message || 'Unknown error'}
-          </Text>
-        </SafeAreaView>
-      );
+      return this.props.children;
     }
 
     return this.props.children;
@@ -96,6 +90,7 @@ const App = () => {
     </>
   );
 
+  /*
   // If a global JS error occurred, show an explicit error screen so we can capture details
   if (globalError) {
     return (
@@ -105,6 +100,27 @@ const App = () => {
       </SafeAreaView>
     );
   }
+  */
+
+  React.useEffect(() => {
+    const unsubscribeData = WiFiSensorService.subscribeSensorData((packet) => {
+      console.log('📡 SENSOR DATA RECEIVED:', packet);
+    });
+
+    const unsubscribeStatus = WiFiSensorService.subscribeStatus((status) => {
+      console.log('🔄 WiFi Sensor Status:', status);
+    });
+
+    const unsubscribeError = WiFiSensorService.subscribeError((error) => {
+      console.error('❌ WiFi Sensor Error:', error.message);
+    });
+
+    return () => {
+      unsubscribeData();
+      unsubscribeStatus();
+      unsubscribeError();
+    };
+  }, []);
 
   return (
     <ErrorBoundary>

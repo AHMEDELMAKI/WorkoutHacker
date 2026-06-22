@@ -32,7 +32,9 @@ export {
   useEMGPackets,
   useIMUPackets,
   useWiFiSensorState,
+  useDiagnostics,
 } from './hooks';
+export type { DiagnosticResult } from './hooks';
 
 // Re-export main component as default
 export { default } from './WiFiSensorBridge';

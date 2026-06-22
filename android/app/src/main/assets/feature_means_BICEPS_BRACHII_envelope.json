@@ -1,0 +1,13 @@
+{
+  "RMS_rel": NaN,
+  "MAV_rel": NaN,
+  "VAR_rel": NaN,
+  "WL_rel": NaN,
+  "SSC_rel": -0.04066041383499945,
+  "SKEW_rel": NaN,
+  "KURT_rel": NaN,
+  "RMS_rel_delta": 0.006330183293096989,
+  "SKEW_rel_delta": -0.016757557338593233,
+  "RMS_rel_slope5": NaN,
+  "SKEW_rel_slope5": NaN
+}

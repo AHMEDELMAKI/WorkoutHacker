@@ -50,6 +50,7 @@ export type ProfileSetupStackParamList = {
 export type AICoachStackParamList = {
     AICoachHome: undefined;
     WorkoutPlanner: undefined;
+    NutritionPlanner: undefined;
 };
 
 // Main Tab Stack
@@ -122,6 +123,7 @@ export type WorkoutStackParamList = {
         sets?: number;
         score?: number;
         fatigue?: string;
+        fatigueConfidence?: number;
     };
 };
 

@@ -60,6 +60,24 @@ class WiFiSensorServiceImpl {
   }
 
   /**
+   * Test if ESP32 is reachable at baseUrl
+   */
+  private async testConnection(): Promise<boolean> {
+    try {
+      console.debug('[WiFiSensorService] Testing connection to', this.baseUrl);
+
+      // Try root endpoint first
+      const response = await fetch(this.baseUrl);
+      
+      console.debug('[WiFiSensorService] Root path response:', response.status);
+      return response.ok || response.status < 500;
+    } catch (error) {
+      console.warn('[WiFiSensorService] Connection test failed:', error instanceof Error ? error.message : String(error));
+      return false;
+    }
+  }
+
+  /**
    * Start polling for sensor data
    */
   start(): void {
@@ -70,6 +88,16 @@ class WiFiSensorServiceImpl {
 
     this.isMounted = true;
     this.setStatus('connecting');
+    
+    // First test if ESP32 is reachable
+    this.testConnection().then((isReachable) => {
+      if (!isReachable) {
+        console.error('[WiFiSensorService] ESP32 is not reachable at', this.baseUrl);
+        this.notifyError(new Error(`ESP32 not reachable at ${this.baseUrl}. Check WiFi connection.`));
+      } else {
+        console.debug('[WiFiSensorService] ESP32 is reachable');
+      }
+    });
 
     const poll = async () => {
       if (!this.isMounted) {
@@ -84,23 +112,45 @@ class WiFiSensorServiceImpl {
       this.pollInFlight = true;
 
       try {
-        console.debug('[WiFiSensorService] polling', this.baseUrl + '/data');
-        const response = await fetch(`${this.baseUrl}/data`);
+        const url = `${this.baseUrl}/data`;
+        console.debug('[WiFiSensorService] polling', url);
+
+        const response = await fetch(url, { 
+          headers: {
+            'Accept': 'text/plain',
+            'Connection': 'keep-alive',
+            'Cache-Control': 'no-cache',
+            'User-Agent': 'WorkoutHacker/1.0',
+          },
+          method: 'GET',
+          credentials: 'omit',
+        });
+
         console.debug('[WiFiSensorService] fetch response ok?', response.ok, 'status', response.status);
         if (!response.ok) {
-          throw new Error(`HTTP ${response.status}`);
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
         }
 
         const text = await response.text();
-        console.debug('[WiFiSensorService] fetched text length', text.length);
-        if (text.trim()) {
+        console.debug('[WiFiSensorService] fetched text length', text.length, 'content:', text.substring(0, 100));
+        
+        if (text.trim().length === 0) {
+          console.warn('[WiFiSensorService] WARNING: Got empty response from ESP32. Check if sensors are connected/running.');
           if (!this.hasConnectedOnce) {
+            // Still mark as connected if we got a successful HTTP response, even if no data yet
             this.hasConnectedOnce = true;
             this.setStatus('connected');
           }
+          return;
+        }
+        
+        if (!this.hasConnectedOnce) {
+          this.hasConnectedOnce = true;
+          this.setStatus('connected');
         }
 
         const lines = text.split(/\r?\n/);
+        let parsedCount = 0;
         for (const line of lines) {
           const trimmed = line.trim();
           if (!trimmed) {
@@ -111,7 +161,12 @@ class WiFiSensorServiceImpl {
           if (packet) {
             console.debug('[WiFiSensorService] parsed packet', packet.sensor, packet.timestamp);
             this.notifySensorData(packet);
+            parsedCount++;
           }
+        }
+        
+        if (parsedCount === 0 && lines.length > 0) {
+          console.warn('[WiFiSensorService] WARNING: Got response but failed to parse packets. Response:', text.substring(0, 200));
         }
       } catch (error) {
         if (!this.isMounted) {
@@ -119,8 +174,20 @@ class WiFiSensorServiceImpl {
         }
 
         this.setStatus('connecting');
-        const err = error instanceof Error ? error : new Error(String(error));
-        console.warn('[WiFiSensorService] poll error', err);
+        
+        let errMsg = 'Unknown error';
+        if (error instanceof Error) {
+          errMsg = error.message;
+          // React Native specific error messages
+          if (errMsg.includes('Failed to fetch') || errMsg.includes('Network request failed')) {
+            errMsg = `Cannot reach ESP32 at ${this.baseUrl}. Make sure:\n1. Phone is connected to ESP32 WiFi\n2. ESP32 is powered on and HTTP server is running\n3. IP address is correct`;
+          } else if (errMsg.includes('ECONNREFUSED') || errMsg.includes('unreachable')) {
+            errMsg = `Connection refused - ESP32 is not accepting connections on ${this.baseUrl}`;
+          }
+        }
+        
+        const err = new Error(errMsg);
+        console.warn('[WiFiSensorService] poll error:', err.message);
         this.notifyError(err);
       } finally {
         this.pollInFlight = false;
@@ -196,14 +263,55 @@ class WiFiSensorServiceImpl {
   }
 
   /**
-   * Internal: Notify all subscribers of new sensor data
+   * Diagnostic: Check if ESP32 endpoints are working
+   * Call this to debug connection issues
+   */
+  async diagnoseConnection(): Promise<{
+    rootUrl: boolean;
+    dataEndpoint: boolean;
+    errors: string[];
+  }> {
+    const errors: string[] = [];
+    
+    console.log('[WiFiSensorService] Starting diagnostics...');
+    
+    // Test root
+    let rootUrl = false;
+    try {
+      const response = await fetch(this.baseUrl);
+      rootUrl = response.ok || response.status < 500;
+      console.log('[WiFiSensorService] Root URL:', response.status, rootUrl ? '✓' : '✗');
+    } catch (error) {
+      errors.push(`Root URL unreachable: ${error instanceof Error ? error.message : String(error)}`);
+      console.log('[WiFiSensorService] Root URL: ✗', errors[errors.length - 1]);
+    }
+    
+    // Test /data endpoint
+    let dataEndpoint = false;
+    try {
+      const response = await fetch(`${this.baseUrl}/data`);
+      dataEndpoint = response.ok || response.status < 500;
+      const content = await response.text();
+      console.log('[WiFiSensorService] /data endpoint:', response.status, dataEndpoint ? '✓' : '✗', 'content length:', content.length);
+    } catch (error) {
+      errors.push(`/data endpoint unreachable: ${error instanceof Error ? error.message : String(error)}`);
+      console.log('[WiFiSensorService] /data endpoint: ✗', errors[errors.length - 1]);
+    }
+    
+    const result = { rootUrl, dataEndpoint, errors };
+    console.log('[WiFiSensorService] Diagnostics result:', result);
+    return result;
+  }
+
+  /**
+   * Internal: Notify all subscribers of sensor data
    */
   private notifySensorData(packet: SensorPacket): void {
     this.sensorDataSubscribers.forEach((callback) => {
       try {
         callback(packet);
-      } catch (error) {
-        console.error('Error in sensor data subscriber:', error);
+      } catch (callbackError) {
+        console.error('Error in sensor data subscriber:', callbackError);
       }
     });
   }
@@ -219,8 +327,8 @@ class WiFiSensorServiceImpl {
     this.statusSubscribers.forEach((callback) => {
       try {
         callback(newStatus);
-      } catch (error) {
-        console.error('Error in status subscriber:', error);
+      } catch (callbackError) {
+        console.error('Error in status subscriber:', callbackError);
       }
     });
   }
@@ -232,8 +340,8 @@ class WiFiSensorServiceImpl {
     this.errorSubscribers.forEach((callback) => {
       try {
         callback(error);
-      } catch (error) {
-        console.error('Error in error subscriber:', error);
+      } catch (callbackError) {
+        console.error('Error in error subscriber:', callbackError);
       }
     });
   }
