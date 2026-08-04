@@ -1,3 +1,5 @@
+// Adapted from react-native-workout-planner (https://github.com/tony-div/react-native-workout-planner)
+// by Tony George. See README "Attribution" section.
 import type { WorkoutPlan } from './types';
 
 export const DEFAULT_EQUIPMENT = ['barbell', 'dumbbell', 'machines', 'bands', 'bodyweight'];

@@ -1,3 +1,5 @@
+// Adapted from react-native-workout-planner (https://github.com/tony-div/react-native-workout-planner)
+// by Tony George. See README "Attribution" section.
 #!/usr/bin/env node
 
 import { initializeEnvFile } from './config';
