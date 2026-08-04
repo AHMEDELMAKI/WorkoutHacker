@@ -1,3 +1,5 @@
+// Adapted from react-native-ghost-guide (https://github.com/tony-div/react-native-ghost-guide)
+// by Tony George. See README "Attribution" section.
 export type Point3D = {
   x: number
   y: number
