@@ -96,5 +96,15 @@ For more detailed information, please refer to the documents in the `readme_file
 *   **[WiFi Integration](readme_files/WIFI_INTEGRATION_GUIDE.md):** Connecting ESP32 sensors.
 *   **[Refactoring Summary](readme_files/REFACTORING_SUMMARY.md):** Overview of recent architectural improvements.
 
+## 🙏 Attribution
+
+This project integrates components from the following packages by [Tony George](https://github.com/tony-div), who is credited here as their original author:
+
+*   **[react-native-workout-planner](https://github.com/tony-div/react-native-workout-planner):** The vendored `react-native-workout-planner-main/` and `core/` directories, plus the workout-planning logic in `backend/src/lib/workout-planner/`, `src/lib/workoutPlanner/`, and `src/lib/workout-planner/`.
+*   **[react-native-exercise-recognition](https://github.com/tony-div/react-native-exercise-recognition):** The `exercise_classifier_rf.json` exercise recognition model.
+*   **[react-native-tempo-classifier](https://github.com/tony-div/react-native-tempo-classifier):** The `tempo_classifier.json` model.
+*   **[react-native-fatigue-classifier](https://github.com/tony-div/react-native-fatigue-classifier):** The fatigue Random Forest models and feature/label metadata (`fatigue_rf_model_*`, `feature_*`, `label_map_*`, `model_metadata_*`).
+*   **[react-native-ghost-guide](https://github.com/tony-div/react-native-ghost-guide):** The exercise ghost-guide frame data in `src/assets/ghost-guide/`.
+
 ## ⚖️ License
 This project is licensed under the MIT License.
